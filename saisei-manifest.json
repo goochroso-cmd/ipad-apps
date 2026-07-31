@@ -1,0 +1,25 @@
+{
+  "name": "さいせい君",
+  "short_name": "さいせい君",
+  "description": "デスクトップ・ポン出しシステム",
+  "start_url": "./さいせい君_standalone.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#00f2fe",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./saisei-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./saisei-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

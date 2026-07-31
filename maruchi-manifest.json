@@ -1,0 +1,25 @@
+{
+  "name": "まるち君",
+  "short_name": "まるち君",
+  "description": "デスクトップ・マルチメディアポン出しシステム",
+  "start_url": "./まるち君_standalone.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#00f2fe",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./maruchi-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./maruchi-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

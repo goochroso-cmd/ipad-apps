@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>iPad ポン出しポータル</title>
+
+  <!-- PWA 設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="./saisei-icon.png">
+
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      --card-bg: rgba(255, 255, 255, 0.06);
+      --card-border: rgba(255, 255, 255, 0.14);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --color-accent1: #22d3ee;
+      --color-accent2: #f472b6;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-gradient);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .container { max-width: 760px; width: 100%; text-align: center; }
+
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      background: linear-gradient(to right, var(--color-accent1), var(--color-accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      font-size: 1.35rem;
+      color: var(--text-secondary);
+      margin-bottom: 44px;
+      line-height: 1.6;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      margin-bottom: 44px;
+    }
+
+    @media (min-width: 560px) {
+      .app-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .app-card {
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: 20px;
+      padding: 34px 24px;
+      text-decoration: none;
+      color: inherit;
+      min-height: 260px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .app-card:active { transform: scale(0.97); }
+
+    .app-card.saisei:hover { background: rgba(34, 211, 238, 0.1); border-color: var(--color-accent1); }
+    .app-card.maruchi:hover { background: rgba(244, 114, 182, 0.1); border-color: var(--color-accent2); }
+
+    .app-icon {
+      width: 108px;
+      height: 108px;
+      border-radius: 24px;
+      margin-bottom: 22px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .app-title { font-size: 1.85rem; font-weight: 700; margin-bottom: 10px; }
+
+    .app-desc { font-size: 1.1rem; color: var(--text-secondary); line-height: 1.6; }
+
+    .footer {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      text-align: left;
+    }
+
+    .footer strong { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>iPad ポン出しシステム</h1>
+    <p class="subtitle">起動したいアプリを選んでください</p>
+
+    <div class="app-grid">
+      <a href="./さいせい君_standalone.html" class="app-card saisei">
+        <img class="app-icon" src="./saisei-icon.png" alt="さいせい君アイコン">
+        <div class="app-title">さいせい君</div>
+        <div class="app-desc">音声再生パッド<br>(1P 100曲 / 最大300枠)</div>
+      </a>
+
+      <a href="./まるち君_standalone.html" class="app-card maruchi">
+        <img class="app-icon" src="./maruchi-icon.png" alt="まるち君アイコン">
+        <div class="app-title">まるち君</div>
+        <div class="app-desc">音声・動画再生パッド<br>＆プロジェクター出力</div>
+      </a>
+    </div>
+
+    <div class="footer">
+      <p><strong>ホーム画面への追加のしかた</strong></p>
+      <p>アプリを開いた状態で、Safari下部の共有ボタン（□に↑）→「ホーム画面に追加」を押してください。アイコン付きで登録され、電波がなくても起動できます。</p>
+    </div>
+  </div>
+
+  <script>
+    // オフライン用 Service Worker を登録（さいせい君・まるち君と共通）
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js')
+          .then(function (reg) { console.log('[portal] SW 登録成功', reg.scope); })
+          .catch(function (err) { console.warn('[portal] SW 登録失敗', err); });
+      });
+    }
+  </script>
+</body>
+</html>
