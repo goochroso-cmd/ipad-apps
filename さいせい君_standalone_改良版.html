@@ -2655,6 +2655,34 @@ class PondashiAudioEngine {
     
     // アナライザー (ビジュアル用)
     this.analyser = null;
+
+    // 【改良版v3】<audio>要素プール
+    // 旧版は decodeAudioData で曲を丸ごと「生の波形」に戻してメモリへ載せていた。
+    // 生の波形は1分あたり約21MBあり、5分の曲12個で約1.2GB。iPad Air 2(メモリ1GB)では
+    // 物理的に載らず、これが「登録が消える」「固まる」の根本原因だった。
+    // v3ではブラウザ標準の<audio>に流し込みながら再生させるので、メモリは数十MBで済む。
+    this.PRIMARY_SLOTS = 12; // 1ページに表示できる最大パッド数(縦3×横4)と同じ
+    this.SPARE_SLOTS = 4;    // 重ね再生(overlap/retrigger)用の予備
+    this.slots = [];
+    this.webAudioRouteOK = true;
+    this.slotsUnlocked = false;
+
+    // 診断用の計測値（iPadで原因を切り分けるために画面へ出す）
+    this.diag = {
+      armStartedAt: 0,
+      armElapsedMs: null,
+      armTotal: 0,
+      armDone: 0,
+      armFailed: 0,
+      lastTapToSoundMs: null,
+      silentWarning: false,
+      slotCount: 0
+    };
+  }
+
+  // 解禁用の無音ファイル（44バイトのWAV）
+  static get SILENT_WAV() {
+    return 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
   }
 
   // デフォルトのパッド設定
@@ -2670,8 +2698,13 @@ class PondashiAudioEngine {
     return {
       id: index,
       name: '空のパッド',
-      audioData: null,   // ArrayBuffer (IndexedDB保存用)
-      audioBuffer: null, // デコード済みの AudioBuffer (再生用)
+      audioData: null,   // 旧形式の生データ(ArrayBuffer)。古い保存データを読むためだけに残す
+      audioBlob: null,   // 【改良版v3】音声ファイル本体(Blob)。保存にも再生にも使う
+      audioUrl: null,    // audioBlob から作った再生用のURL
+      mimeType: '',      // ファイル形式
+      armed: false,      // 【改良版v3】すぐ鳴らせる状態か（<audio>の読み込み完了）
+      slot: -1,          // 割り当てられた<audio>要素プールの番号（-1は未割当）
+      audioBuffer: null, // 互換のために残している（v3では常に null）
       key: defaultKeys[index] || '',
       duration: 0,       // 曲の長さ(秒)。デコード前でも時間表示できるよう保存しておく
       volume: 1.0,       // 個別音量 (0.0 〜 1.5)
@@ -2700,6 +2733,81 @@ class PondashiAudioEngine {
     
     this.masterGainNode.connect(this.analyser);
     this.analyser.connect(this.audioCtx.destination);
+
+    // 【改良版v3】<audio>要素をここで一度だけまとめて作る。
+    // iOSは「人が画面を触った瞬間」に一度でも再生を始めた要素しか、以降プログラムから
+    // 鳴らせない。ページを移動するたびに要素を作り直すと、そのたび解禁が必要になり
+    // 「押しても鳴らない」が起きる。最初に必要数だけ作って解禁しておき、ページ移動時は
+    // 中身(src)だけ差し替える方式にする。
+    this._buildSlots();
+  }
+
+  // <audio>要素プールの作成
+  _buildSlots() {
+    if (this.slots && this.slots.length) return;
+    if (typeof document === 'undefined') return;
+    this.slots = [];
+    const total = this.PRIMARY_SLOTS + this.SPARE_SLOTS;
+    for (let i = 0; i < total; i++) {
+      const el = document.createElement('audio');
+      el.preload = 'auto';
+      // iOSで全画面プレイヤーに乗っ取られないようにする
+      el.setAttribute('playsinline', '');
+      el.setAttribute('webkit-playsinline', '');
+      try { if (el.disableRemotePlayback !== undefined) el.disableRemotePlayback = true; } catch (e) {}
+      el.style.display = 'none';
+      document.body.appendChild(el);
+
+      let srcNode = null;
+      let gainNode = null;
+      try {
+        srcNode = this.audioCtx.createMediaElementSource(el);
+        gainNode = this.audioCtx.createGain();
+        gainNode.gain.value = 1.0;
+        srcNode.connect(gainNode);
+        gainNode.connect(this.masterGainNode);
+      } catch (e) {
+        // iOSでは<audio>の音量をプログラムから変えられないため、フェードには
+        // Web Audio を経由させる必要がある。万一この端末で経由できない場合は、
+        // 素の<audio>のまま鳴らす（フェードは効かなくなるが、無音よりはよい）。
+        console.warn('createMediaElementSource に失敗しました。素の<audio>で再生します:', e);
+        this.webAudioRouteOK = false;
+      }
+
+      this.slots.push({
+        el: el,
+        srcNode: srcNode,
+        gainNode: gainNode,
+        padIndex: -1,
+        primary: i < this.PRIMARY_SLOTS,
+        unlocked: false,
+        busy: false
+      });
+    }
+    this.diag.slotCount = this.slots.length;
+  }
+
+  // 【改良版v3】iOSの音声解禁。必ずタップ/クリックのハンドラの中から、
+  // await を挟まずに呼ぶこと（awaitを挟むと「人が触った」扱いが切れる）。
+  unlockSlots() {
+    if (!this.slots || !this.slots.length) return;
+    for (const slot of this.slots) {
+      if (slot.unlocked) continue;
+      try {
+        const el = slot.el;
+        if (!el.getAttribute('src')) el.src = PondashiAudioEngine.SILENT_WAV;
+        const p = el.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => { try { el.pause(); } catch (e) {} }).catch(() => {});
+        } else {
+          try { el.pause(); } catch (e) {}
+        }
+        slot.unlocked = true;
+      } catch (e) {
+        console.warn('<audio>要素の解禁に失敗しました:', e);
+      }
+    }
+    this.slotsUnlocked = true;
   }
 
   // IndexedDB の初期化
@@ -2769,6 +2877,9 @@ class PondashiAudioEngine {
             const index = data.id;
             if (index >= 0 && index < MAX_PADS) {
               this.pads[index] = { ...this.pads[index], ...data };
+              // 【改良版v3】旧形式(ArrayBuffer)で保存されたデータもそのまま読めるようにする。
+              // 読み込んだ時点でBlobへ揃えておけば、以降の処理は新旧どちらでも同じになる。
+              this._normalizeAudioSource(index);
             }
           }
           // 旧データには duration が無いので、キャッシュから補う
@@ -2787,58 +2898,180 @@ class PondashiAudioEngine {
     });
   }
 
-  // 音声データをデコード (iOS Safari対策のため async 化)
-  // timeoutMs: 古い端末(iPad Air 2 など)では1曲のデコードに10秒以上かかることがあるため
-  //            余裕をもった既定値にする。短すぎると「登録したのに空になる」不具合の原因になる。
-  async decodeAudio(arrayBuffer, timeoutMs = 60000) {
-    if (!this.audioCtx) {
-      throw new Error('AudioContext が初期化されていません。');
-    }
-    
-    // iOS Safari対策: suspended 状態のまま decodeAudioData を呼ぶと解決されないバグを回避
-    if (this.audioCtx.state === 'suspended') {
+  // 【改良版v3】保存データの音声を Blob に統一する（旧形式の ArrayBuffer も受け付ける）
+  _normalizeAudioSource(index) {
+    const pad = this.pads[index];
+    if (!pad) return;
+    if (!pad.audioBlob && pad.audioData) {
       try {
-        await this.audioCtx.resume();
+        pad.audioBlob = new Blob([pad.audioData], { type: pad.mimeType || 'audio/mpeg' });
       } catch (e) {
-        console.warn('AudioContext の再開に失敗しました:', e);
+        console.warn('旧形式データの変換に失敗しました:', e);
+        return;
+      }
+    }
+    // 生の ArrayBuffer はメモリを二重に食うので、Blob 化できたら手放す
+    if (pad.audioBlob && pad.audioData) pad.audioData = null;
+  }
+
+  // 曲が登録されているか（デコード済みかどうかとは無関係）
+  hasAudio(index) {
+    const pad = this.pads[index];
+    return !!(pad && (pad.audioBlob || pad.audioData));
+  }
+
+  // すぐ鳴らせる状態か
+  isArmed(index) {
+    const pad = this.pads[index];
+    return !!(pad && pad.armed && pad.slot >= 0);
+  }
+
+  // 再生開始位置を、曲の長さの範囲内に収める
+  _boundedOffset(pad, el) {
+    const off = (pad && pad.startOffset !== undefined) ? pad.startOffset : 0;
+    let dur = 0;
+    if (el && isFinite(el.duration) && el.duration > 0) dur = el.duration;
+    else if (pad && pad.duration) dur = pad.duration;
+    if (!dur) return Math.max(0, off);
+    return Math.max(0, Math.min(off, Math.max(0, dur - 0.05)));
+  }
+
+  // パッドに<audio>要素を割り当てる
+  _assignSlot(index) {
+    if (!this.slots || !this.slots.length) this._buildSlots();
+    if (!this.slots || !this.slots.length) return null;
+    const pad = this.pads[index];
+    if (!pad) return null;
+    if (pad.slot >= 0 && this.slots[pad.slot] && this.slots[pad.slot].padIndex === index) {
+      return this.slots[pad.slot];
+    }
+    for (let i = 0; i < this.PRIMARY_SLOTS; i++) {
+      const slot = this.slots[i];
+      if (slot && slot.padIndex === -1) {
+        slot.padIndex = index;
+        pad.slot = i;
+        return slot;
       }
     }
 
+    // 枠が全部ふさがっている場合の保険。
+    // 表示中のページの外にあって、かつ鳴っていない曲から枠を取り上げる。
+    // （前のページの曲がフェードアウト中だと枠を返さないため、ここが必要になる）
+    for (let i = 0; i < this.PRIMARY_SLOTS; i++) {
+      const slot = this.slots[i];
+      if (!slot) continue;
+      const owner = slot.padIndex;
+      if (owner < 0 || owner === index) continue;
+      if (this.isPlaying(owner)) continue;
+      if (this._isInKeepRange(owner)) continue;
+      this._releasePadSlot(owner);
+      slot.padIndex = index;
+      pad.slot = i;
+      return slot;
+    }
+
+    // まだ足りない場合（前ページの曲がフェードアウト中で枠を握っているなど）は、
+    // 重ね再生用の予備枠を一時的に借りる。フェードが終われば元の枠が返ってくる。
+    for (let i = this.PRIMARY_SLOTS; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+      if (slot && !slot.busy && slot.padIndex === -1) {
+        slot.padIndex = index;
+        pad.slot = i;
+        return slot;
+      }
+    }
+
+    return null;
+  }
+
+  // 表示中のページの範囲内か
+  _isInKeepRange(index) {
+    if (this._keepCount === undefined || this._keepCount === null) return false;
+    return index >= this._keepStart && index < this._keepStart + this._keepCount;
+  }
+
+  // 1つのパッドから<audio>要素を取り上げ、プールへ返す
+  _releasePadSlot(index) {
+    const pad = this.pads[index];
+    if (!pad || pad.slot < 0) return;
+    const slot = this.slots[pad.slot];
+    if (slot) {
+      try { slot.el.pause(); } catch (e) {}
+      try { slot.el.removeAttribute('src'); slot.el.load(); } catch (e) {}
+      slot.padIndex = -1;
+      slot.busy = false;
+    }
+    if (pad.audioUrl) {
+      try { URL.revokeObjectURL(pad.audioUrl); } catch (e) {}
+      pad.audioUrl = null;
+    }
+    pad.slot = -1;
+    pad.armed = false;
+  }
+
+  // 重ね再生用の予備要素を借りる
+  _takeSpareSlot(index) {
+    if (!this.slots) return null;
+    for (let i = this.PRIMARY_SLOTS; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+      if (slot && !slot.busy && slot.padIndex === -1) {
+        slot.padIndex = index;
+        return slot;
+      }
+    }
+    return null;
+  }
+
+  // <audio>要素が再生を始められる状態になるまで待つ
+  _waitReady(el, timeoutMs = 25000) {
     return new Promise((resolve, reject) => {
-      let isSettled = false;
-      
-      const timeoutId = setTimeout(() => {
-        if (!isSettled) {
-          isSettled = true;
-          reject(new Error(`オーディオデコードがタイムアウトしました（${Math.round(timeoutMs / 1000)}秒以上応答がありません）。`));
-        }
-      }, timeoutMs);
+      // readyState 3 = HAVE_FUTURE_DATA。ここまで来れば再生を開始できる
+      if (el.readyState >= 3) { resolve(); return; }
+      let done = false;
+      let timer = null;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        el.removeEventListener('canplay', ok);
+        el.removeEventListener('canplaythrough', ok);
+        el.removeEventListener('loadeddata', ok);
+        el.removeEventListener('error', ng);
+      };
+      const ok = () => { if (done) return; done = true; cleanup(); resolve(); };
+      const ng = () => { if (done) return; done = true; cleanup(); reject(new Error('音声ファイルを読み込めませんでした')); };
+      timer = setTimeout(() => { if (done) return; done = true; cleanup(); reject(new Error('読み込みがタイムアウトしました')); }, timeoutMs);
+      el.addEventListener('canplay', ok);
+      el.addEventListener('canplaythrough', ok);
+      el.addEventListener('loadeddata', ok);
+      el.addEventListener('error', ng);
+    });
+  }
 
-      try {
-        this.audioCtx.decodeAudioData(
-          arrayBuffer,
-          (decodedBuffer) => {
-            if (!isSettled) {
-              isSettled = true;
-              clearTimeout(timeoutId);
-              resolve(decodedBuffer);
-            }
-          },
-          (err) => {
-            if (!isSettled) {
-              isSettled = true;
-              clearTimeout(timeoutId);
-              reject(err || new Error('デコードエラー'));
-            }
-          }
-        );
-      } catch (e) {
-        if (!isSettled) {
-          isSettled = true;
-          clearTimeout(timeoutId);
-          reject(e);
-        }
-      }
+  // <audio>にファイルを読ませて曲の長さだけを取得する（デコード不要なので軽い）
+  _probeDuration(url) {
+    return new Promise((resolve, reject) => {
+      const probe = document.createElement('audio');
+      probe.preload = 'metadata';
+      let done = false;
+      let timer = null;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        try { probe.removeAttribute('src'); probe.load(); } catch (e) {}
+      };
+      probe.addEventListener('loadedmetadata', () => {
+        if (done) return; done = true;
+        const d = isFinite(probe.duration) ? probe.duration : 0;
+        cleanup();
+        resolve(d);
+      });
+      probe.addEventListener('error', () => {
+        if (done) return; done = true; cleanup();
+        reject(new Error('UNSUPPORTED'));
+      });
+      timer = setTimeout(() => {
+        if (done) return; done = true; cleanup();
+        resolve(0); // 長さが取れなくても再生自体はできることがあるので続行する
+      }, 15000);
+      probe.src = url;
     });
   }
 
@@ -2869,78 +3102,115 @@ class PondashiAudioEngine {
     }
   }
 
-  // 【改良版v2】1つのパッドだけをデコードする。
-  // 同じパッドに対して何度呼ばれても、実際のデコードは1回だけ走る（重複防止）。
-  // 戻り値: デコード済み AudioBuffer / 音声が無ければ null
-  ensurePadDecoded(index) {
+  // 【改良版v3】1つのパッドを「すぐ鳴らせる状態」にする。
+  // 旧版(ensurePadDecoded)はファイル全体を生の波形に戻していたため重すぎた。
+  // v3では<audio>に読み込ませ、再生開始位置まで頭出しした状態で待機させる。
+  // 同じパッドに対して何度呼ばれても、実際の処理は1回だけ走る（重複防止）。
+  armPad(index) {
     const pad = this.pads[index];
-    if (!pad) return Promise.resolve(null);
-    if (pad.audioBuffer) return Promise.resolve(pad.audioBuffer);
-    if (!pad.audioData) return Promise.resolve(null);
-    if (!this.audioCtx) return Promise.resolve(null);
+    if (!pad) return Promise.resolve(false);
+    if (!pad.audioBlob && pad.audioData) this._normalizeAudioSource(index);
+    if (!pad.audioBlob) return Promise.resolve(false);
+    if (!this.audioCtx) return Promise.resolve(false);
+    if (pad.armed && pad.slot >= 0) return Promise.resolve(true);
 
-    if (!this._decodingPromises) this._decodingPromises = {};
-    if (this._decodingPromises[index]) return this._decodingPromises[index];
+    if (!this._armingPromises) this._armingPromises = {};
+    if (this._armingPromises[index]) return this._armingPromises[index];
 
     const job = (async () => {
       try {
-        // decodeAudioData は元の ArrayBuffer を無効化するのでコピーを渡す
-        const decoded = await this.decodeAudio(pad.audioData.slice(0));
-        pad.audioBuffer = decoded;
-        pad.duration = decoded.duration;
-        // 曲の長さを軽量にキャッシュしておく（次回以降、デコード前でも時間表示できる）
-        this._cacheDuration(index, decoded.duration);
-        return decoded;
+        const slot = this._assignSlot(index);
+        if (!slot) {
+          console.warn('空いている<audio>要素がありません: パッド ' + index);
+          return false;
+        }
+
+        if (!pad.audioUrl) pad.audioUrl = URL.createObjectURL(pad.audioBlob);
+
+        const el = slot.el;
+        el.loop = false;
+        if (el.getAttribute('src') !== pad.audioUrl) {
+          el.src = pad.audioUrl;
+          try { el.load(); } catch (e) {}
+        }
+
+        await this._waitReady(el);
+
+        if (isFinite(el.duration) && el.duration > 0) {
+          pad.duration = el.duration;
+          this._cacheDuration(index, el.duration);
+        }
+
+        // 再生開始位置へあらかじめ頭出ししておく（押した瞬間に鳴らすため）
+        const off = this._boundedOffset(pad, el);
+        try { if (Math.abs(el.currentTime - off) > 0.02) el.currentTime = off; } catch (e) {}
+
+        pad.armed = true;
+        return true;
       } catch (e) {
-        console.error(`パッド ${index} のデコードに失敗しました:`, e);
-        return null;
+        console.warn('パッド ' + index + ' の準備に失敗しました:', e);
+        pad.armed = false;
+        return false;
       } finally {
-        delete this._decodingPromises[index];
+        delete this._armingPromises[index];
       }
     })();
 
-    this._decodingPromises[index] = job;
+    this._armingPromises[index] = job;
     return job;
   }
 
-  // 【改良版v2】指定範囲のパッドを「1曲ずつ順番に」デコードする（ページ単位の遅延デコード用）
-  // 例: decodeRange(24, 12) なら、3ページ目(index 24〜35)の音声だけをデコードする
-  //
-  // 旧版は Promise.all で12曲を同時に投げていたが、iPad Air 2 のような非力な端末では
-  // 全部が詰まって共通のタイムアウトに引っかかり、まとめてデコード失敗 → パッドが空扱いに
-  // なる不具合の原因になっていた。ここでは1曲ずつ処理し、1曲終わるごとに onProgress を
-  // 呼んで画面を更新する（＝準備できた曲から順に使えるようになる）。
-  async decodeRange(startIndex, count, onProgress, isAborted) {
-    if (!this.audioCtx) return;
-    const end = Math.min(startIndex + count, MAX_PADS);
-    for (let i = Math.max(startIndex, 0); i < end; i++) {
-      // 別のページに移動されたなど、途中でやめるべき場合はここで抜ける
-      if (typeof isAborted === 'function' && isAborted()) return;
-
-      const pad = this.pads[i];
-      if (!pad || !pad.audioData || pad.audioBuffer) continue;
-
-      await this.ensurePadDecoded(i);
-
-      if (typeof onProgress === 'function') {
-        try { onProgress(i); } catch (e) { console.warn('onProgress エラー:', e); }
-      }
-      // 1曲ごとにブラウザへ制御を返す（画面が固まらないようにするため）
-      await new Promise((r) => setTimeout(r, 0));
-    }
+  // 旧名のまま呼ばれても動くようにしておく（互換用）
+  ensurePadDecoded(index) {
+    return this.armPad(index);
   }
 
-  // 【改良版】指定範囲の外にあるパッドのデコード済み音声(audioBuffer)を解放する
-  // メモリを圧迫し続けないための処理。再生中のパッドは解放しない。
-  // audioData(生データ)自体は残すので、後で必要になれば decodeRange で再デコードできる。
+  // 【改良版v3】表示中のページのパッドをまとめて「すぐ鳴らせる状態」にする。
+  //
+  // 旧版は1曲ずつ順番にデコードしていたが、ポン出しは「どのボタンが最初に押されるか
+  // 分からない」ため、左上から順に用意しても意味がない。12個目が最初に押されるかも
+  // しれない以上、大事なのは「12個ぜんぶが揃うまでの時間」。
+  // v3は読み込みが軽いので同時に進め、全部そろうまでの時間そのものを短くする。
+  async armRange(startIndex, count, onProgress, isAborted) {
+    if (!this.audioCtx) return;
+    const end = Math.min(startIndex + count, MAX_PADS);
+    const jobs = [];
+    for (let i = Math.max(startIndex, 0); i < end; i++) {
+      const pad = this.pads[i];
+      if (!pad || !this.hasAudio(i) || pad.armed) continue;
+      const idx = i;
+      jobs.push(this.armPad(idx).then((ok) => {
+        if (typeof isAborted === 'function' && isAborted()) return;
+        if (!ok) this.diag.armFailed++;
+        if (typeof onProgress === 'function') {
+          try { onProgress(idx, ok); } catch (e) { console.warn('onProgress エラー:', e); }
+        }
+      }));
+    }
+    await Promise.all(jobs);
+  }
+
+  // 旧名のまま呼ばれても動くようにしておく（互換用）
+  async decodeRange(startIndex, count, onProgress, isAborted) {
+    return this.armRange(startIndex, count, onProgress, isAborted);
+  }
+
+  // 【改良版v3】表示範囲の外にあるパッドから<audio>要素を取り上げ、プールへ返す。
+  // 要素そのものは捨てないので、iOSの音声解禁をやり直す必要がない。
+  // 曲のデータ(Blob)は残るため、そのページを開けばまたすぐ準備できる。
   releaseBuffersOutsideRange(keepStart, keepCount) {
+    // 今どのページを見ているかを覚えておく（鳴り終わった曲の枠を返す判断に使う）
+    this._keepStart = keepStart;
+    this._keepCount = keepCount;
+
     const keepEnd = keepStart + keepCount;
     for (let i = 0; i < MAX_PADS; i++) {
       if (i >= keepStart && i < keepEnd) continue;
       const pad = this.pads[i];
-      if (pad && pad.audioBuffer && !this.isPlaying(i)) {
-        pad.audioBuffer = null;
-      }
+      if (!pad || pad.slot < 0) continue;
+      // 鳴っている曲は止めない。鳴り終わった時点で _finishInstance が枠を返す。
+      if (this.isPlaying(i)) continue;
+      this._releasePadSlot(i);
     }
   }
 
@@ -2970,7 +3240,15 @@ class PondashiAudioEngine {
         comment: config.comment !== undefined ? config.comment : ''
       };
 
-      if (config.audioData) {
+      // 【改良版v3】音声は Blob のまま保存する。
+      // 旧版は ArrayBuffer をまるごとコピーしてから書き込んでいたため、50MBの曲なら
+      // コピーだけで50MB余計にメモリを使っていた。Blob ならコピー不要で、ブラウザが
+      // ファイルとして書き込むので登録も速くなる。
+      if (config.audioBlob) {
+        dataToSave.audioBlob = config.audioBlob;
+        dataToSave.mimeType = config.mimeType || config.audioBlob.type || 'audio/mpeg';
+      } else if (config.audioData) {
+        // 旧形式のデータをそのまま保持している場合の保険
         dataToSave.audioData = config.audioData.slice(0);
       }
 
@@ -3005,6 +3283,20 @@ class PondashiAudioEngine {
   // パッドの削除 (初期化)
   clearPad(index) {
     this.stopPad(index, 0);
+    // 【改良版v3】<audio>要素をプールへ返し、再生用URLを破棄する
+    const oldPad = this.pads[index];
+    if (oldPad) {
+      if (oldPad.slot >= 0 && this.slots && this.slots[oldPad.slot]) {
+        const slot = this.slots[oldPad.slot];
+        try { slot.el.pause(); } catch (e) {}
+        try { slot.el.removeAttribute('src'); slot.el.load(); } catch (e) {}
+        slot.padIndex = -1;
+        slot.busy = false;
+      }
+      if (oldPad.audioUrl) {
+        try { URL.revokeObjectURL(oldPad.audioUrl); } catch (e) {}
+      }
+    }
     const defaultPad = this.getDefaultPadConfig(index);
     this.pads[index] = defaultPad;
     
@@ -3029,41 +3321,44 @@ class PondashiAudioEngine {
   }
 
   // 音声ファイルのインポート処理
+  // 【改良版v3】ファイル全体をメモリへ読み込んでからコピーする、という無駄をやめた。
+  // File はそのまま Blob として扱えるので IndexedDB へ直接保存でき、
+  // 曲の長さも <audio> に読ませるだけで分かる（デコード不要）。
   async importFileToPad(index, file) {
     this.initAudio();
 
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+    const blob = file;
+    const url = URL.createObjectURL(blob);
+    let duration = 0;
+    try {
+      duration = await this._probeDuration(url);
+    } catch (e) {
+      try { URL.revokeObjectURL(url); } catch (e2) {}
+      throw new Error('対応していない音声形式か、ファイルが破損しています。');
+    }
+    try { URL.revokeObjectURL(url); } catch (e) {}
 
-      reader.onload = async (e) => {
-        const arrayBuffer = e.target.result;
-        try {
-          const decoded = await this.decodeAudio(arrayBuffer.slice(0));
-          
-          const currentName = this.pads[index].name;
-          const isDefaultName = currentName === '空のパッド' || currentName === '';
-          const padConfig = {
-            ...this.pads[index],
-            name: isDefaultName ? file.name.replace(/\.[^/.]+$/, "") : currentName,
-            audioData: arrayBuffer,
-            audioBuffer: decoded,
-            duration: decoded.duration
-          };
+    const currentName = this.pads[index].name;
+    const isDefaultName = currentName === '空のパッド' || currentName === '';
+    const padConfig = {
+      ...this.pads[index],
+      name: isDefaultName ? file.name.replace(/\.[^/.]+$/, "") : currentName,
+      audioBlob: blob,
+      audioData: null,
+      audioBuffer: null,
+      audioUrl: null,
+      armed: false,
+      slot: -1,
+      mimeType: blob.type || 'audio/mpeg',
+      duration: duration
+    };
 
-          await this.savePad(index, padConfig);
-          resolve(padConfig);
-        } catch (err) {
-          console.error('音声デコードエラー:', err);
-          reject(new Error('対応していない音声形式か、ファイルが破損しています。'));
-        }
-      };
+    if (duration > 0) this._cacheDuration(index, duration);
 
-      reader.onerror = () => {
-        reject(new Error('ファイルの読み込みに失敗しました。'));
-      };
-
-      reader.readAsArrayBuffer(file);
-    });
+    await this.savePad(index, padConfig);
+    // 登録した直後からすぐ鳴らせるようにしておく
+    try { await this.armPad(index); } catch (e) { console.warn('登録直後の準備に失敗:', e); }
+    return this.pads[index];
   }
 
   // マスター音量の調整 (0.0 〜 1.0)
@@ -3075,19 +3370,23 @@ class PondashiAudioEngine {
   }
 
   // パッドの再生トリガー
+  // 【改良版v3】AudioBufferSourceNode をやめ、<audio>要素を鳴らす方式にした。
+  // 音量とフェードは Web Audio の GainNode で行う（iOSでは<audio>の音量を
+  // プログラムから変更できないため、クロスフェードにはこの経路が必須）。
   playPad(index, onPlayEnd) {
     this.initAudio();
-    
+
     if (this.audioCtx.state === 'suspended') {
       this.audioCtx.resume();
     }
 
     const pad = this.pads[index];
-    if (!pad || !pad.audioBuffer) return false;
+    if (!pad || !this.hasAudio(index)) return false;
 
+    const tapAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     const currentTime = this.audioCtx.currentTime;
 
-    // 再生モードの処理
+    // 再生モードの処理（ここは従来と同じ考え方）
     if (pad.playMode === 'solo') {
       for (let i = 0; i < MAX_PADS; i++) {
         if (i !== index) this.stopPad(i);
@@ -3104,52 +3403,208 @@ class PondashiAudioEngine {
       }
     }
 
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = pad.audioBuffer;
-    source.loop = pad.loop;
+    // 使う<audio>要素を決める。
+    // 自分の要素がまだ鳴っている（重ね再生やフェードアウト中）なら予備を借りる。
+    let slot = (pad.slot >= 0 && this.slots && this.slots[pad.slot]) ? this.slots[pad.slot] : this._assignSlot(index);
+    let usingSpare = false;
+    if (slot && slot.busy) {
+      const spare = this._takeSpareSlot(index);
+      if (spare) {
+        slot = spare;
+        usingSpare = true;
+      } else {
+        this._hardStopSlot(slot);
+      }
+    }
+    if (!slot) return false;
 
-    const startOffset = pad.startOffset !== undefined ? pad.startOffset : 0.0;
-    const boundedOffset = Math.min(startOffset, Math.max(0, pad.audioBuffer.duration - 0.01));
-    
-    if (source.loop) {
-      source.loopStart = boundedOffset;
+    const el = slot.el;
+
+    if (!pad.audioUrl) {
+      try { pad.audioUrl = URL.createObjectURL(pad.audioBlob); } catch (e) { return false; }
+    }
+    if (el.getAttribute('src') !== pad.audioUrl) {
+      el.src = pad.audioUrl;
+      try { el.load(); } catch (e) {}
     }
 
-    const padGain = this.audioCtx.createGain();
-    
-    if (pad.fadeIn > 0) {
-      padGain.gain.setValueAtTime(0, currentTime);
-      padGain.gain.linearRampToValueAtTime(pad.volume, currentTime + pad.fadeIn);
+    const off = this._boundedOffset(pad, el);
+    try { el.currentTime = off; } catch (e) {}
+    // 開始位置が0のときだけブラウザ標準のループが使える。
+    // 途中から始まる曲のループは 'ended' で自分で巻き戻す（下のonEndedを参照）。
+    el.loop = !!(pad.loop && off <= 0.001);
+
+    const gainNode = slot.gainNode;
+    if (gainNode) {
+      try {
+        gainNode.gain.cancelScheduledValues(currentTime);
+        if (pad.fadeIn > 0) {
+          gainNode.gain.setValueAtTime(0, currentTime);
+          gainNode.gain.linearRampToValueAtTime(pad.volume, currentTime + pad.fadeIn);
+        } else {
+          gainNode.gain.setValueAtTime(pad.volume, currentTime);
+        }
+      } catch (e) { console.warn('音量設定に失敗:', e); }
     } else {
-      padGain.gain.setValueAtTime(pad.volume, currentTime);
+      // Web Audio に繋げない端末向けの保険（フェードは効かない）
+      try { el.volume = Math.max(0, Math.min(1, pad.volume)); } catch (e) {}
     }
 
-    source.connect(padGain);
-    padGain.connect(this.masterGainNode);
-
-    source.start(currentTime, boundedOffset);
+    slot.busy = true;
 
     const playInstance = {
-      source: source,
-      gainNode: padGain,
+      slot: slot,
+      el: el,
+      gainNode: gainNode,
       startTime: currentTime,
-      onEndCallback: onPlayEnd
+      isSpare: usingSpare,
+      onEndCallback: onPlayEnd,
+      stopTimer: null,
+      endHandler: null,
+      finished: false,
+      stopping: false
     };
+
+    const onEnded = () => {
+      // 開始位置つきループの巻き戻し
+      if (pad.loop && !playInstance.stopping) {
+        try {
+          el.currentTime = this._boundedOffset(pad, el);
+          el.play();
+        } catch (e) { this._finishInstance(index, playInstance); }
+        return;
+      }
+      this._finishInstance(index, playInstance);
+    };
+    playInstance.endHandler = onEnded;
+    el.addEventListener('ended', onEnded);
+
+    // 診断: 押してから実際に音が出るまでの時間を測る
+    const onPlaying = () => {
+      el.removeEventListener('playing', onPlaying);
+      const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      this.diag.lastTapToSoundMs = Math.round(t1 - tapAt);
+    };
+    el.addEventListener('playing', onPlaying);
 
     this.activeSources[index].push(playInstance);
 
-    source.onended = () => {
-      const idx = this.activeSources[index].indexOf(playInstance);
-      if (idx !== -1) {
-        this.activeSources[index].splice(idx, 1);
+    try {
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch((e) => {
+          console.warn('再生に失敗しました:', e);
+          this._finishInstance(index, playInstance);
+        });
       }
-      
-      if (!source.loop && this.activeSources[index].length === 0 && typeof onPlayEnd === 'function') {
-        onPlayEnd(index);
-      }
-    };
+    } catch (e) {
+      console.warn('再生に失敗しました:', e);
+      this._finishInstance(index, playInstance);
+      return false;
+    }
 
     return true;
+  }
+
+  // 再生インスタンスの後始末（自然終了・停止・失敗のすべてでここを通る）
+  _finishInstance(index, instance) {
+    if (!instance || instance.finished) return;
+    instance.finished = true;
+
+    const el = instance.el;
+    try { el.pause(); } catch (e) {}
+    if (instance.endHandler) {
+      try { el.removeEventListener('ended', instance.endHandler); } catch (e) {}
+    }
+    if (instance.stopTimer) {
+      clearTimeout(instance.stopTimer);
+      instance.stopTimer = null;
+    }
+
+    const slot = instance.slot;
+    if (slot) {
+      slot.busy = false;
+      if (instance.isSpare) {
+        try { el.removeAttribute('src'); el.load(); } catch (e) {}
+        slot.padIndex = -1;
+      } else {
+        // 次に押されたとき即座に鳴るよう、開始位置へ戻しておく
+        const pad = this.pads[index];
+        try { el.currentTime = this._boundedOffset(pad, el); } catch (e) {}
+      }
+      if (slot.gainNode && this.audioCtx) {
+        try {
+          const now = this.audioCtx.currentTime;
+          slot.gainNode.gain.cancelScheduledValues(now);
+          slot.gainNode.gain.setValueAtTime(1.0, now);
+        } catch (e) {}
+      }
+    }
+
+    const list = this.activeSources[index];
+    if (list) {
+      const i = list.indexOf(instance);
+      if (i !== -1) list.splice(i, 1);
+      if (list.length === 0) {
+        // 表示中のページの外にある曲なら、ここで<audio>要素を返す。
+        // （ページ移動のときフェードアウト中で返せなかった枠を回収する）
+        if (!instance.isSpare && this._keepCount !== undefined && !this._isInKeepRange(index)) {
+          this._releasePadSlot(index);
+        }
+        if (typeof instance.onEndCallback === 'function') {
+          try { instance.onEndCallback(index); } catch (e) { console.warn('再生終了処理でエラー:', e); }
+        }
+      }
+    }
+  }
+
+  // 指定の<audio>要素を使っている再生を強制的に終わらせる
+  _hardStopSlot(slot) {
+    if (!slot) return;
+    for (let i = 0; i < MAX_PADS; i++) {
+      const list = this.activeSources[i];
+      if (!list || !list.length) continue;
+      for (const inst of [...list]) {
+        if (inst.slot === slot) this._finishInstance(i, inst);
+      }
+    }
+    slot.busy = false;
+  }
+
+  // 再生位置(秒)を返す。表示用。
+  getPlayPosition(index) {
+    const list = this.activeSources[index];
+    if (!list || !list.length) return null;
+    const inst = list[list.length - 1];
+    if (!inst || !inst.el) return null;
+    const t = inst.el.currentTime;
+    return isFinite(t) ? t : null;
+  }
+
+  // 【診断】Web Audio 経由で本当に音が届いているかを調べる。
+  // 再生中なのにアナライザーがずっと無反応なら、この端末では
+  // <audio>→Web Audio の接続が効いていない（＝音が出ていない）可能性が高い。
+  checkSilence() {
+    if (!this.analyser || !this.audioCtx) return;
+    let playing = false;
+    for (let i = 0; i < MAX_PADS; i++) {
+      if (this.activeSources[i] && this.activeSources[i].length) { playing = true; break; }
+    }
+    if (!playing) {
+      this._silentSince = 0;
+      return;
+    }
+    const data = this.getVisualData();
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i];
+    if (sum > 0) {
+      this._silentSince = 0;
+      this.diag.silentWarning = false;
+      return;
+    }
+    const now = Date.now();
+    if (!this._silentSince) this._silentSince = now;
+    else if (now - this._silentSince > 1500) this.diag.silentWarning = true;
   }
 
   // パッドの音量を動的に設定（再生中にもリアルタイム反映）
@@ -3163,13 +3618,18 @@ class PondashiAudioEngine {
       const currentTime = this.audioCtx ? this.audioCtx.currentTime : 0;
       instances.forEach(instance => {
         if (instance.gainNode && !instance.isFadingOut) {
-          instance.gainNode.gain.setValueAtTime(volume, currentTime);
+          try { instance.gainNode.gain.setValueAtTime(volume, currentTime); } catch (e) {}
+        } else if (!instance.gainNode && instance.el) {
+          // Web Audio に繋げない端末向けの保険
+          try { instance.el.volume = Math.max(0, Math.min(1, volume)); } catch (e) {}
         }
       });
     }
   }
 
   // パッドの再生停止
+  // 【改良版v3】source.stop(時刻) が使えなくなったので、フェードが終わる時刻に
+  // タイマーで el.pause() を呼ぶ方式にした。フェード自体は従来どおり GainNode で行う。
   stopPad(index, customFadeOutTime = null) {
     if (!this.audioCtx) return;
 
@@ -3180,34 +3640,35 @@ class PondashiAudioEngine {
     const currentTime = this.audioCtx.currentTime;
     const fadeOutDuration = customFadeOutTime !== null ? customFadeOutTime : (pad ? pad.fadeOut : 0);
 
-    const instancesToStop = [...instances];
-    
-    instancesToStop.forEach((instance) => {
-      const source = instance.source;
+    [...instances].forEach((instance) => {
+      if (instance.stopping || instance.finished) return;
+      instance.stopping = true;
+
+      const el = instance.el;
       const gainNode = instance.gainNode;
 
       try {
-        source.loop = false;
+        el.loop = false;
 
-        if (fadeOutDuration > 0) {
+        if (fadeOutDuration > 0 && gainNode) {
           instance.isFadingOut = true;
           instance.fadeOutStartTime = currentTime;
           instance.fadeOutDuration = fadeOutDuration;
           const currentGain = gainNode.gain.value;
+          gainNode.gain.cancelScheduledValues(currentTime);
           gainNode.gain.setValueAtTime(currentGain, currentTime);
           gainNode.gain.linearRampToValueAtTime(0, currentTime + fadeOutDuration);
-          source.stop(currentTime + fadeOutDuration);
+          instance.stopTimer = setTimeout(() => {
+            this._finishInstance(index, instance);
+          }, Math.ceil(fadeOutDuration * 1000) + 40);
         } else {
-          source.stop(currentTime);
+          this._finishInstance(index, instance);
         }
       } catch (e) {
         console.warn('停止中にエラーが発生しました:', e);
+        this._finishInstance(index, instance);
       }
     });
-
-    if (fadeOutDuration <= 0) {
-      this.activeSources[index] = [];
-    }
   }
 
   // 全音即時停止 (Panic) — 現在表示中のパッド数を引数で渡す
@@ -3291,7 +3752,7 @@ class PondashiAudioEngine {
       const pad = this.pads[i];
       // デフォルト状態でない（＝何かしらカスタムされている）パッドのみを抽出してファイルサイズを削減
       const isDefault = pad.name === '空のパッド' && 
-                        !pad.audioData && 
+                        !pad.audioData && !pad.audioBlob && 
                         pad.key === (this.getDefaultPadConfig(i).key || '') && 
                         pad.volume === 1.0 && 
                         !pad.loop && 
@@ -3307,7 +3768,7 @@ class PondashiAudioEngine {
           id: pad.id,
           name: pad.name,
           key: pad.key,
-          duration: pad.duration || (pad.audioBuffer ? pad.audioBuffer.duration : 0),
+          duration: pad.duration || 0,
           volume: pad.volume,
           loop: pad.loop,
           startOffset: pad.startOffset,
@@ -3317,7 +3778,16 @@ class PondashiAudioEngine {
           theme: pad.theme,
           comment: pad.comment || ''
         };
-        if (pad.audioData) {
+        // 【改良版v3】Blob で持っているデータも書き出せるようにする
+        if (pad.audioBlob) {
+          try {
+            const buf = await pad.audioBlob.arrayBuffer();
+            padCopy.audioData = this._arrayBufferToBase64(buf);
+            padCopy.mimeType = pad.audioBlob.type || pad.mimeType || 'audio/mpeg';
+          } catch (e) {
+            console.warn('パッド ' + i + ' の書き出しに失敗しました:', e);
+          }
+        } else if (pad.audioData) {
           padCopy.audioData = this._arrayBufferToBase64(pad.audioData);
         }
         exportPads.push(padCopy);
@@ -3363,11 +3833,12 @@ class PondashiAudioEngine {
           config.theme = padData.theme;
           config.comment = padData.comment || '';
 
-          // 【改良版】インポート時点で全曲を一気にデコードしない。
-          // audioData(生データ)だけ保持し、実際に表示されるページになった時に
-          // ensureCurrentPageAudioReady() がデコードする。
+          // 【改良版v3】読み込んだ時点で Blob に揃えておく。
+          // 実際に鳴らせる状態にするのは、そのページを開いたときでよい。
           if (padData.audioData) {
-            config.audioData = this._base64ToArrayBuffer(padData.audioData);
+            const buf = this._base64ToArrayBuffer(padData.audioData);
+            config.mimeType = padData.mimeType || 'audio/mpeg';
+            config.audioBlob = new Blob([buf], { type: config.mimeType });
           }
           this.pads[index] = config;
         }
@@ -3407,9 +3878,11 @@ class PondashiAudioEngine {
         config.theme = padData.theme;
         config.comment = padData.comment || '';
 
-        // 【改良版】ここでも同様に、インポート時点での全曲デコードはしない。
+        // 【改良版v3】ここでも読み込んだ時点で Blob に揃える。
         if (padData.audioData) {
-          config.audioData = this._base64ToArrayBuffer(padData.audioData);
+          const buf = this._base64ToArrayBuffer(padData.audioData);
+          config.mimeType = padData.mimeType || 'audio/mpeg';
+          config.audioBlob = new Blob([buf], { type: config.mimeType });
         }
 
         // データベースに保存し、メモリ上も同期
@@ -3621,48 +4094,76 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ensureCurrentPageAudioReady = async () => {
     if (!engine.audioCtx) return;
 
-    // 新しく呼ばれたら、前回の進行中デコードは打ち切る（ページを素早く連打した時の対策）
+    // 新しく呼ばれたら、前回の進行中の準備は打ち切る（ページを素早く連打した時の対策）
     const myToken = ++pageDecodeToken;
     const aborted = () => myToken !== pageDecodeToken;
 
     const pageOffset = currentPage * PAGE_PAD_LIMIT;
 
-    // まず他ページの音声を解放してメモリを空けてから、このページを準備する
+    // まず他ページのパッドから<audio>要素を回収してから、このページを準備する
     engine.releaseBuffersOutsideRange(pageOffset, PAGE_PAD_LIMIT);
 
-    // このページで準備が必要な曲数を数える（進捗表示用）
-    let totalToDecode = 0;
+    // このページで準備が必要な曲数を数える
+    let totalToArm = 0;
     for (let i = pageOffset; i < pageOffset + PAGE_PAD_LIMIT; i++) {
-      const p = engine.pads[i];
-      if (p && p.audioData && !p.audioBuffer) totalToDecode++;
+      if (engine.hasAudio(i) && !engine.isArmed(i)) totalToArm++;
     }
-    if (totalToDecode === 0) return;
+    if (totalToArm === 0) {
+      engine.diag.armTotal = 0;
+      engine.diag.armElapsedMs = 0;
+      updateDiagPanel();
+      return;
+    }
+
+    // 診断: 12個ぜんぶが揃うまでの時間を測る（ポン出しで本当に重要なのはこの数字）
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    engine.diag.armStartedAt = t0;
+    engine.diag.armTotal = totalToArm;
+    engine.diag.armDone = 0;
+    engine.diag.armFailed = 0;
+    engine.diag.armElapsedMs = null;
 
     let done = 0;
-    setStatus(`音声を準備中… 0 / ${totalToDecode}曲`, 'loading');
+    setStatus(`音声を準備中… 0 / ${totalToArm}曲`, 'loading');
+    updateDiagPanel();
 
-    await engine.decodeRange(
+    await engine.armRange(
       pageOffset,
       PAGE_PAD_LIMIT,
-      (decodedIndex) => {
+      (armedIndex) => {
         if (aborted()) return;
         done++;
-        updatePadUI(decodedIndex);
-        try { drawWaveform(decodedIndex); } catch (e) { /* 波形描画は失敗しても致命的でない */ }
-        if (done >= totalToDecode) {
-          setStatus('音声の準備が完了しました。');
+        engine.diag.armDone = done;
+        updatePadUI(armedIndex);
+        try { drawWaveform(armedIndex); } catch (e) { /* 波形描画は失敗しても致命的でない */ }
+        if (done >= totalToArm) {
+          const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          engine.diag.armElapsedMs = Math.round(t1 - t0);
+          setStatus('音声の準備が完了しました。どのボタンでもすぐ鳴らせます。');
         } else {
-          setStatus(`音声を準備中… ${done} / ${totalToDecode}曲`, 'loading');
+          setStatus(`音声を準備中… ${done} / ${totalToArm}曲`, 'loading');
         }
+        updateDiagPanel();
       },
       aborted
     );
+
+    if (!aborted() && engine.diag.armElapsedMs === null) {
+      const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      engine.diag.armElapsedMs = Math.round(t1 - t0);
+      updateDiagPanel();
+    }
   };
 
   // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理
   // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理 ＆ 起動時音声デコード処理
   const unlockAudio = async () => {
     engine.initAudio();
+    // 【改良版v3】ここが最重要。iOSでは「人が画面を触った、まさにその瞬間」に
+    // 再生を始めた<audio>要素だけが、以降プログラムから自由に鳴らせるようになる。
+    // await を挟むと「触った」扱いが切れてしまうので、必ず先にまとめて解禁する。
+    try { engine.unlockSlots(); } catch (e) { console.warn('音声解禁でエラー:', e); }
+
     if (engine.audioCtx && engine.audioCtx.state === 'suspended') {
       await engine.audioCtx.resume();
     }
@@ -3692,6 +4193,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       setStatus('アプリケーションが起動しました。音声をドラッグ＆ドロップしてロードしてください。');
     }
+
+    // 診断パネルを用意する（表示は「診断」ボタンを押したときだけ）
+    try { buildDiagPanel(); } catch (e) { console.warn('診断パネルの作成に失敗:', e); }
 
     // 音声の準備は待たずにバックグラウンドで進める
     ensureCurrentPageAudioReady();
@@ -3977,7 +4481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 【改良版v2】「本当に空」＝音声データ自体が無い場合だけファイル選択を開く。
         // 旧版はデコード前(audioBuffer が null)でもここに来てしまい、曲が登録済みなのに
         // いきなりファイル選択が開く＝上書きしかねない危険な動きになっていた。
-        if (!pad || (!pad.audioBuffer && !pad.audioData)) {
+        if (!pad || !engine.hasAudio(padIdx)) {
           audioFileInput.click();
           return;
         }
@@ -4041,9 +4545,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 【改良版v2】「曲が登録されているか」は audioData(生データ)の有無で判定する。
     // 旧版は audioBuffer(デコード済み)で判定していたため、ページを移動した直後など
     // まだデコードが終わっていない曲が「空のパッド」に見えてしまっていた。
-    const hasAudio = !!(pad.audioBuffer || pad.audioData);
+    const hasAudio = engine.hasAudio(index);
     // デコードがまだ終わっていない＝すぐには鳴らせない状態
-    const isPreparing = !pad.audioBuffer && !!pad.audioData;
+    // 「準備中…」＝まだ即座には鳴らせない状態。ポン出しではこのバッジが1個でも
+    // 残っているうちは本番で使えない、という意味になる。
+    const isPreparing = hasAudio && !engine.isArmed(index);
 
     if (hasAudio) {
       padEl.classList.add('loaded');
@@ -4072,7 +4578,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (commentEl) commentEl.textContent = pad.comment || "";
       
       // 再生時間のフォーマット（デコード前は保存しておいた長さを使う）
-      const duration = pad.audioBuffer ? pad.audioBuffer.duration : (pad.duration || 0);
+      const duration = pad.duration || 0;
       const startOffset = pad.startOffset || 0.0;
       
       if (!engine.isPlaying(index)) {
@@ -4190,7 +4696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     padVolumeVal.textContent = Math.round(pad.volume * 100) + '%';
     
     // 再生開始位置の同期（デコード前でも保存済みの曲の長さを使って操作できるようにする）
-    const knownDuration = pad.audioBuffer ? pad.audioBuffer.duration : (pad.duration || 0);
+    const knownDuration = pad.duration || 0;
     if (knownDuration > 0) {
       padStartOffsetInput.max = knownDuration.toFixed(1);
       padStartOffsetInput.disabled = false;
@@ -4326,12 +4832,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 【改良版v2】まだデコードが終わっていない曲を押された場合の保険。
     // その場で優先的にデコードし、終わり次第すぐ再生する（押しても無反応、を防ぐ）。
     const targetPad = engine.pads[index];
-    if (targetPad && targetPad.audioData && !targetPad.audioBuffer) {
+    if (targetPad && engine.hasAudio(index) && !engine.isArmed(index)) {
       setStatus(`「${targetPad.name}」を準備しています…`, 'loading');
-      engine.ensurePadDecoded(index).then((decoded) => {
+      engine.armPad(index).then((ok) => {
         updatePadUI(index);
         try { drawWaveform(index); } catch (e) { /* 波形は失敗しても致命的でない */ }
-        if (decoded) {
+        if (ok) {
           triggerPlay(index);
         } else {
           setStatus('この曲は再生できませんでした。ファイル形式をご確認ください。', 'error');
@@ -4371,7 +4877,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // プログレスバーと時間表示の更新タイマー
       const pad = engine.pads[index];
-      const duration = pad.audioBuffer.duration;
+      const duration = pad.duration || 0;
       const startTime = engine.audioCtx.currentTime;
       const startOffset = pad.startOffset || 0.0;
 
@@ -4404,17 +4910,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           currentPadEl.style.removeProperty('--fade-progress');
         }
 
-        const timeInPlay = Math.max(0, engine.audioCtx.currentTime - startTime);
-        const cycle = duration - startOffset;
-        
-        let elapsed = startOffset;
-        let remaining = duration - startOffset;
-        
-        if (pad.loop) {
-          const relativeElapsed = timeInPlay % cycle;
-          elapsed = startOffset + relativeElapsed;
-          remaining = cycle - relativeElapsed;
+        // 【改良版v3】<audio>の実際の再生位置をそのまま使う。
+        // 時計から計算するより正確で、ループの巻き戻しにも自然に追従する。
+        const pos = engine.getPlayPosition(index);
+        let elapsed;
+        let remaining;
+        if (pos !== null && isFinite(pos)) {
+          elapsed = pos;
+          remaining = Math.max(0, duration - elapsed);
         } else {
+          const timeInPlay = Math.max(0, engine.audioCtx.currentTime - startTime);
           elapsed = startOffset + timeInPlay;
           remaining = Math.max(0, duration - elapsed);
         }
@@ -4770,8 +5275,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ============================================================
+  // 【改良版v3】診断パネル
+  // iPadには開発者向けの画面が無いため、不具合が出たときに原因を切り分けられるよう
+  // 主要な数字をここに出す。落ち着いたら消してよい。
+  // ============================================================
+  let diagPanel = null;
+  let diagBody = null;
+
+  function buildDiagPanel() {
+    if (diagPanel) return;
+
+    const btn = document.createElement('button');
+    btn.textContent = '診断';
+    btn.setAttribute('aria-label', '診断情報を表示');
+    btn.style.cssText = [
+      'position:fixed', 'left:10px', 'bottom:10px', 'z-index:9998',
+      'font-size:1.05rem', 'font-weight:800', 'padding:10px 16px',
+      'border-radius:10px', 'border:2px solid rgba(255,255,255,0.35)',
+      'background:rgba(20,24,34,0.88)', 'color:#fff', 'cursor:pointer',
+      'min-width:72px', 'min-height:44px'
+    ].join(';');
+
+    diagPanel = document.createElement('div');
+    diagPanel.style.cssText = [
+      'position:fixed', 'left:10px', 'bottom:64px', 'z-index:9999',
+      'display:none', 'max-width:min(94vw,560px)',
+      'background:rgba(12,16,24,0.97)', 'color:#fff',
+      'border:2px solid rgba(255,255,255,0.35)', 'border-radius:12px',
+      'padding:16px 18px', 'font-size:1.15rem', 'line-height:1.85',
+      'font-weight:700', 'box-shadow:0 8px 32px rgba(0,0,0,0.6)'
+    ].join(';');
+
+    diagBody = document.createElement('div');
+    diagPanel.appendChild(diagBody);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '閉じる';
+    closeBtn.style.cssText = [
+      'margin-top:12px', 'font-size:1.05rem', 'font-weight:800',
+      'padding:10px 18px', 'border-radius:10px', 'min-height:44px',
+      'border:2px solid rgba(255,255,255,0.35)',
+      'background:rgba(255,255,255,0.12)', 'color:#fff', 'cursor:pointer'
+    ].join(';');
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      diagPanel.style.display = 'none';
+    });
+    diagPanel.appendChild(closeBtn);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      diagPanel.style.display = (diagPanel.style.display === 'none') ? 'block' : 'none';
+      updateDiagPanel();
+    });
+
+    document.body.appendChild(diagPanel);
+    document.body.appendChild(btn);
+  }
+
+  function updateDiagPanel() {
+    if (!diagBody || !diagPanel || diagPanel.style.display === 'none') return;
+    const d = engine.diag || {};
+    const armMs = (d.armElapsedMs === null || d.armElapsedMs === undefined)
+      ? '準備中…'
+      : (d.armElapsedMs / 1000).toFixed(2) + ' 秒';
+    const tap = (d.lastTapToSoundMs === null || d.lastTapToSoundMs === undefined)
+      ? '未計測'
+      : d.lastTapToSoundMs + ' ミリ秒';
+    const route = engine.webAudioRouteOK ? '○ つながっている' : '× つながっていない';
+    const silent = d.silentWarning ? '× 音が届いていない' : '○ 問題なし';
+
+    let armedCount = 0;
+    let audioCount = 0;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = pageOffset; i < pageOffset + PAGE_PAD_LIMIT; i++) {
+      if (engine.hasAudio(i)) {
+        audioCount++;
+        if (engine.isArmed(i)) armedCount++;
+      }
+    }
+
+    diagBody.innerHTML =
+      '<div style="font-size:1.3rem;margin-bottom:10px;">診断情報（v3 ストリーム方式）</div>' +
+      '<div>このページの曲　　　：' + audioCount + ' 曲</div>' +
+      '<div>すぐ鳴らせる曲　　　：' + armedCount + ' / ' + audioCount + ' 曲</div>' +
+      '<div>全部そろうまで　　　：' + armMs + '</div>' +
+      '<div>準備に失敗した曲　　：' + (d.armFailed || 0) + ' 曲</div>' +
+      '<div>押してから鳴るまで　：' + tap + '</div>' +
+      '<div>音量調整の経路　　　：' + route + '</div>' +
+      '<div>音が出ているか　　　：' + silent + '</div>' +
+      '<div>音の待機枠　　　　　：' + (d.slotCount || 0) + ' 個</div>';
+  }
+
   function renderVisualizer() {
     if (!engine.audioCtx || visBars.length === 0) return;
+
+    // 診断: 再生中なのに音が届いていないかを監視する
+    try { engine.checkSilence(); } catch (e) {}
+    updateDiagPanel();
 
     const data = engine.getVisualData();
     if (data.length > 0) {
@@ -5258,6 +5860,8 @@ function drawWaveform(padIdx, progressPercent = 0, isPlaying = false) {
   
   if (!waveform) {
     if (pad && pad.audioBuffer) {
+      // v3では音声を丸ごとメモリに展開しないため、通常ここは通らない。
+      // （展開しないおかげで長い曲でもメモリ不足にならない）
       waveform = generateWaveformData(pad.audioBuffer, 35);
       waveformCache[padIdx] = waveform;
     } else if (pad && (pad.isVideo || pad.isImage)) {
