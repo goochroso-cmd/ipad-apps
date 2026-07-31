@@ -1,0 +1,25 @@
+{
+  "name": "まるち君（改良版テスト）",
+  "short_name": "まるち君 改良版",
+  "description": "デスクトップ・マルチメディアポン出しシステム（動画先読み順次化・改良版）",
+  "start_url": "./まるち君_standalone_改良版.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#00f2fe",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./maruchi-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./maruchi-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

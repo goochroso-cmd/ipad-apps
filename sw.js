@@ -3,15 +3,19 @@
 // ※ アプリごとに sw.js を分けると同じスコープで競合し、片方しか動かなくなるため
 //    意図的に「1つの共通 sw.js」に統合しています。
 
-const CACHE_NAME = 'ipad-apps-cache-v1';
+const CACHE_NAME = 'ipad-apps-cache-v2';
 
 const ASSETS = [
   './',
   './index.html',
   './さいせい君_standalone.html',
   './まるち君_standalone.html',
+  './さいせい君_standalone_改良版.html',
+  './まるち君_standalone_改良版.html',
   './saisei-manifest.json',
   './maruchi-manifest.json',
+  './saisei-manifest-改良版.json',
+  './maruchi-manifest-改良版.json',
   './saisei-icon.png',
   './maruchi-icon.png'
 ];
