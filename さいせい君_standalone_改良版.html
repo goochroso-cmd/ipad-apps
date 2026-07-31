@@ -2300,6 +2300,31 @@ body.light-theme .status-text {
   display: none !important;
 }
 
+/* 【改良版v2】曲は登録済みだが、まだ音声の準備(デコード)が終わっていない状態 */
+.pad.preparing {
+  position: relative;
+}
+.pad.preparing::after {
+  content: '準備中…';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 5;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffd257;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  animation: prepareBlink 1.2s ease-in-out infinite;
+}
+@keyframes prepareBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
 </style>
 </head>
 <body>
@@ -2648,6 +2673,7 @@ class PondashiAudioEngine {
       audioData: null,   // ArrayBuffer (IndexedDB保存用)
       audioBuffer: null, // デコード済みの AudioBuffer (再生用)
       key: defaultKeys[index] || '',
+      duration: 0,       // 曲の長さ(秒)。デコード前でも時間表示できるよう保存しておく
       volume: 1.0,       // 個別音量 (0.0 〜 1.5)
       loop: false,
       startOffset: 0.0,  // 再生開始位置 (秒)
@@ -2721,9 +2747,10 @@ class PondashiAudioEngine {
     
     if (!this.db) {
       console.warn('Running in memory-only mode. Audio will not be persisted.');
+      this._applyCachedDurations();
       return this.pads;
     }
-    
+
     return new Promise((resolve) => {
       try {
         const transaction = this.db.transaction([this.storeName], 'readonly');
@@ -2744,6 +2771,8 @@ class PondashiAudioEngine {
               this.pads[index] = { ...this.pads[index], ...data };
             }
           }
+          // 旧データには duration が無いので、キャッシュから補う
+          this._applyCachedDurations();
           resolve(this.pads);
         };
 
@@ -2759,7 +2788,9 @@ class PondashiAudioEngine {
   }
 
   // 音声データをデコード (iOS Safari対策のため async 化)
-  async decodeAudio(arrayBuffer) {
+  // timeoutMs: 古い端末(iPad Air 2 など)では1曲のデコードに10秒以上かかることがあるため
+  //            余裕をもった既定値にする。短すぎると「登録したのに空になる」不具合の原因になる。
+  async decodeAudio(arrayBuffer, timeoutMs = 60000) {
     if (!this.audioCtx) {
       throw new Error('AudioContext が初期化されていません。');
     }
@@ -2779,9 +2810,9 @@ class PondashiAudioEngine {
       const timeoutId = setTimeout(() => {
         if (!isSettled) {
           isSettled = true;
-          reject(new Error('オーディオデコードがタイムアウトしました（3秒以上応答がありません）。'));
+          reject(new Error(`オーディオデコードがタイムアウトしました（${Math.round(timeoutMs / 1000)}秒以上応答がありません）。`));
         }
-      }, 3000);
+      }, timeoutMs);
 
       try {
         this.audioCtx.decodeAudioData(
@@ -2811,24 +2842,92 @@ class PondashiAudioEngine {
     });
   }
 
-  // 【改良版】指定範囲のパッドだけをデコードする（ページ単位の遅延デコード用）
+  // 【改良版v2】曲の長さ(秒)の軽量キャッシュ。音声本体(数MB)を書き直さずに済むよう、
+  // localStorage に長さだけを保存する。IndexedDB に duration を持たない旧データ対策。
+  _cacheDuration(index, duration) {
+    try {
+      const map = JSON.parse(localStorage.getItem('pondashi_pad_durations') || '{}');
+      map[index] = Math.round(duration * 100) / 100;
+      localStorage.setItem('pondashi_pad_durations', JSON.stringify(map));
+    } catch (e) {
+      // localStorage が使えない環境でも動作は継続させる
+    }
+  }
+
+  // キャッシュしておいた曲の長さを pads に流し込む
+  _applyCachedDurations() {
+    try {
+      const map = JSON.parse(localStorage.getItem('pondashi_pad_durations') || '{}');
+      for (const key of Object.keys(map)) {
+        const i = parseInt(key, 10);
+        if (i >= 0 && i < MAX_PADS && this.pads[i] && !this.pads[i].duration) {
+          this.pads[i].duration = map[key];
+        }
+      }
+    } catch (e) {
+      // 読めなくても致命的ではない
+    }
+  }
+
+  // 【改良版v2】1つのパッドだけをデコードする。
+  // 同じパッドに対して何度呼ばれても、実際のデコードは1回だけ走る（重複防止）。
+  // 戻り値: デコード済み AudioBuffer / 音声が無ければ null
+  ensurePadDecoded(index) {
+    const pad = this.pads[index];
+    if (!pad) return Promise.resolve(null);
+    if (pad.audioBuffer) return Promise.resolve(pad.audioBuffer);
+    if (!pad.audioData) return Promise.resolve(null);
+    if (!this.audioCtx) return Promise.resolve(null);
+
+    if (!this._decodingPromises) this._decodingPromises = {};
+    if (this._decodingPromises[index]) return this._decodingPromises[index];
+
+    const job = (async () => {
+      try {
+        // decodeAudioData は元の ArrayBuffer を無効化するのでコピーを渡す
+        const decoded = await this.decodeAudio(pad.audioData.slice(0));
+        pad.audioBuffer = decoded;
+        pad.duration = decoded.duration;
+        // 曲の長さを軽量にキャッシュしておく（次回以降、デコード前でも時間表示できる）
+        this._cacheDuration(index, decoded.duration);
+        return decoded;
+      } catch (e) {
+        console.error(`パッド ${index} のデコードに失敗しました:`, e);
+        return null;
+      } finally {
+        delete this._decodingPromises[index];
+      }
+    })();
+
+    this._decodingPromises[index] = job;
+    return job;
+  }
+
+  // 【改良版v2】指定範囲のパッドを「1曲ずつ順番に」デコードする（ページ単位の遅延デコード用）
   // 例: decodeRange(24, 12) なら、3ページ目(index 24〜35)の音声だけをデコードする
-  async decodeRange(startIndex, count) {
+  //
+  // 旧版は Promise.all で12曲を同時に投げていたが、iPad Air 2 のような非力な端末では
+  // 全部が詰まって共通のタイムアウトに引っかかり、まとめてデコード失敗 → パッドが空扱いに
+  // なる不具合の原因になっていた。ここでは1曲ずつ処理し、1曲終わるごとに onProgress を
+  // 呼んで画面を更新する（＝準備できた曲から順に使えるようになる）。
+  async decodeRange(startIndex, count, onProgress, isAborted) {
     if (!this.audioCtx) return;
-    const tasks = [];
     const end = Math.min(startIndex + count, MAX_PADS);
     for (let i = Math.max(startIndex, 0); i < end; i++) {
+      // 別のページに移動されたなど、途中でやめるべき場合はここで抜ける
+      if (typeof isAborted === 'function' && isAborted()) return;
+
       const pad = this.pads[i];
-      if (pad && pad.audioData && !pad.audioBuffer) {
-        const bufferCopy = pad.audioData.slice(0);
-        tasks.push(
-          this.decodeAudio(bufferCopy)
-            .then((decoded) => { pad.audioBuffer = decoded; })
-            .catch((e) => console.error(`パッド ${i} のデコードに失敗しました:`, e))
-        );
+      if (!pad || !pad.audioData || pad.audioBuffer) continue;
+
+      await this.ensurePadDecoded(i);
+
+      if (typeof onProgress === 'function') {
+        try { onProgress(i); } catch (e) { console.warn('onProgress エラー:', e); }
       }
+      // 1曲ごとにブラウザへ制御を返す（画面が固まらないようにするため）
+      await new Promise((r) => setTimeout(r, 0));
     }
-    await Promise.all(tasks);
   }
 
   // 【改良版】指定範囲の外にあるパッドのデコード済み音声(audioBuffer)を解放する
@@ -2858,6 +2957,9 @@ class PondashiAudioEngine {
         id: index,
         name: config.name,
         key: config.key,
+        // 曲の長さを一緒に保存しておく。次回起動時にデコード前でも時間表示ができる
+        duration: config.duration !== undefined ? config.duration
+                  : (config.audioBuffer ? config.audioBuffer.duration : 0),
         volume: config.volume,
         loop: config.loop,
         startOffset: config.startOffset !== undefined ? config.startOffset : 0.0,
@@ -2944,7 +3046,8 @@ class PondashiAudioEngine {
             ...this.pads[index],
             name: isDefaultName ? file.name.replace(/\.[^/.]+$/, "") : currentName,
             audioData: arrayBuffer,
-            audioBuffer: decoded
+            audioBuffer: decoded,
+            duration: decoded.duration
           };
 
           await this.savePad(index, padConfig);
@@ -3204,6 +3307,7 @@ class PondashiAudioEngine {
           id: pad.id,
           name: pad.name,
           key: pad.key,
+          duration: pad.duration || (pad.audioBuffer ? pad.audioBuffer.duration : 0),
           volume: pad.volume,
           loop: pad.loop,
           startOffset: pad.startOffset,
@@ -3249,6 +3353,7 @@ class PondashiAudioEngine {
           const config = this.getDefaultPadConfig(index);
           config.name = padData.name;
           config.key = padData.key;
+          config.duration = padData.duration || 0;
           config.volume = padData.volume;
           config.loop = padData.loop;
           config.startOffset = padData.startOffset !== undefined ? padData.startOffset : 0.0;
@@ -3508,11 +3613,50 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ねらい: 曲数が増えても、常にメモリ上に乗る音声は「今見えているページぶん」だけに
   // 抑える。1ページ最大12曲＝どのボタンを押しても即再生、という前提は変えずに、
   // 遠いページの曲は「そのページを開いた瞬間」に用意する方式にする。
+  //
+  // 【改良版v2】ページ切り替え時にデコードの完了を待たない。
+  // 待つと、非力な端末では十数秒画面が固まって「登録が消えた」ように見えるため、
+  // 先に画面を出しておき、準備できた曲から順に「準備中…」表示を外していく方式にする。
+  let pageDecodeToken = 0;
   const ensureCurrentPageAudioReady = async () => {
     if (!engine.audioCtx) return;
+
+    // 新しく呼ばれたら、前回の進行中デコードは打ち切る（ページを素早く連打した時の対策）
+    const myToken = ++pageDecodeToken;
+    const aborted = () => myToken !== pageDecodeToken;
+
     const pageOffset = currentPage * PAGE_PAD_LIMIT;
-    await engine.decodeRange(pageOffset, PAGE_PAD_LIMIT);
+
+    // まず他ページの音声を解放してメモリを空けてから、このページを準備する
     engine.releaseBuffersOutsideRange(pageOffset, PAGE_PAD_LIMIT);
+
+    // このページで準備が必要な曲数を数える（進捗表示用）
+    let totalToDecode = 0;
+    for (let i = pageOffset; i < pageOffset + PAGE_PAD_LIMIT; i++) {
+      const p = engine.pads[i];
+      if (p && p.audioData && !p.audioBuffer) totalToDecode++;
+    }
+    if (totalToDecode === 0) return;
+
+    let done = 0;
+    setStatus(`音声を準備中… 0 / ${totalToDecode}曲`, 'loading');
+
+    await engine.decodeRange(
+      pageOffset,
+      PAGE_PAD_LIMIT,
+      (decodedIndex) => {
+        if (aborted()) return;
+        done++;
+        updatePadUI(decodedIndex);
+        try { drawWaveform(decodedIndex); } catch (e) { /* 波形描画は失敗しても致命的でない */ }
+        if (done >= totalToDecode) {
+          setStatus('音声の準備が完了しました。');
+        } else {
+          setStatus(`音声を準備中… ${done} / ${totalToDecode}曲`, 'loading');
+        }
+      },
+      aborted
+    );
   };
 
   // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理
@@ -3528,11 +3672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.removeEventListener('click', unlockAudio);
     window.removeEventListener('touchstart', unlockAudio);
 
-    // 【改良版】全パッドではなく、今見えているページぶんだけデコードする
-    setStatus('現在のページの音声を復元中...', 'loading');
-    await ensureCurrentPageAudioReady();
-
-    // 全パッドの描画を更新
+    // 【改良版v2】まず登録内容を画面に出す（デコードを待たない）
     const rows = parseInt(gridRowsInput.value) || 4;
     const cols = parseInt(gridColsInput.value) || 4;
     const totalPads = rows * cols;
@@ -3552,6 +3692,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       setStatus('アプリケーションが起動しました。音声をドラッグ＆ドロップしてロードしてください。');
     }
+
+    // 音声の準備は待たずにバックグラウンドで進める
+    ensureCurrentPageAudioReady();
   };
   window.addEventListener('click', unlockAudio);
   window.addEventListener('touchstart', unlockAudio);
@@ -3831,8 +3974,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectPad(padIdx, true);
         
         const pad = engine.pads[padIdx];
-        if (!pad || !pad.audioBuffer) {
-          // 空のパッドをダブルクリックした場合はファイル選択を開く
+        // 【改良版v2】「本当に空」＝音声データ自体が無い場合だけファイル選択を開く。
+        // 旧版はデコード前(audioBuffer が null)でもここに来てしまい、曲が登録済みなのに
+        // いきなりファイル選択が開く＝上書きしかねない危険な動きになっていた。
+        if (!pad || (!pad.audioBuffer && !pad.audioData)) {
           audioFileInput.click();
           return;
         }
@@ -3893,10 +4038,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       'theme-orange', 'theme-red', 'theme-blue', 'theme-green', 'theme-pink', 'theme-slate'
     ];
 
-    if (pad.audioBuffer) {
+    // 【改良版v2】「曲が登録されているか」は audioData(生データ)の有無で判定する。
+    // 旧版は audioBuffer(デコード済み)で判定していたため、ページを移動した直後など
+    // まだデコードが終わっていない曲が「空のパッド」に見えてしまっていた。
+    const hasAudio = !!(pad.audioBuffer || pad.audioData);
+    // デコードがまだ終わっていない＝すぐには鳴らせない状態
+    const isPreparing = !pad.audioBuffer && !!pad.audioData;
+
+    if (hasAudio) {
       padEl.classList.add('loaded');
       padEl.classList.remove('empty');
-      
+      padEl.classList.toggle('preparing', isPreparing);
+
       let hasThemeClass = false;
       allThemes.forEach(t => {
         if (t === pad.theme) {
@@ -3918,8 +4071,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       titleEl.textContent = pad.name;
       if (commentEl) commentEl.textContent = pad.comment || "";
       
-      // 再生時間のフォーマット
-      const duration = pad.audioBuffer.duration;
+      // 再生時間のフォーマット（デコード前は保存しておいた長さを使う）
+      const duration = pad.audioBuffer ? pad.audioBuffer.duration : (pad.duration || 0);
       const startOffset = pad.startOffset || 0.0;
       
       if (!engine.isPlaying(index)) {
@@ -3956,6 +4109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       padEl.classList.add('empty');
       padEl.classList.remove('loaded');
+      padEl.classList.remove('preparing');
       allThemes.forEach(t => padEl.classList.remove(t));
       padEl.style.removeProperty('--accent-color');
       padEl.style.removeProperty('--accent-glow');
@@ -4035,9 +4189,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     padVolumeInput.value = pad.volume;
     padVolumeVal.textContent = Math.round(pad.volume * 100) + '%';
     
-    // 再生開始位置の同期
-    if (pad.audioBuffer) {
-      padStartOffsetInput.max = pad.audioBuffer.duration.toFixed(1);
+    // 再生開始位置の同期（デコード前でも保存済みの曲の長さを使って操作できるようにする）
+    const knownDuration = pad.audioBuffer ? pad.audioBuffer.duration : (pad.duration || 0);
+    if (knownDuration > 0) {
+      padStartOffsetInput.max = knownDuration.toFixed(1);
       padStartOffsetInput.disabled = false;
     } else {
       padStartOffsetInput.max = "60";
@@ -4167,7 +4322,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   function triggerPlay(index) {
     // ユーザーインタラクション時にAudioContextを起動する
     engine.initAudio();
-    
+
+    // 【改良版v2】まだデコードが終わっていない曲を押された場合の保険。
+    // その場で優先的にデコードし、終わり次第すぐ再生する（押しても無反応、を防ぐ）。
+    const targetPad = engine.pads[index];
+    if (targetPad && targetPad.audioData && !targetPad.audioBuffer) {
+      setStatus(`「${targetPad.name}」を準備しています…`, 'loading');
+      engine.ensurePadDecoded(index).then((decoded) => {
+        updatePadUI(index);
+        try { drawWaveform(index); } catch (e) { /* 波形は失敗しても致命的でない */ }
+        if (decoded) {
+          triggerPlay(index);
+        } else {
+          setStatus('この曲は再生できませんでした。ファイル形式をご確認ください。', 'error');
+        }
+      });
+      return;
+    }
+
     // アニメーションループが動いていなければ開始
     if (!animFrameId) {
       renderVisualizer();
@@ -4689,11 +4861,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // 【改良版】このページの音声をデコードし、離れたページの音声は解放する
-    // (どのボタンを押しても即再生、という前提を守るため、UI描画の前に済ませる)
-    await ensureCurrentPageAudioReady();
-
-    // グリッドを再生成してUI同期
+    // 【改良版v2】まず画面を作って登録内容を表示する（ここは一瞬で終わる）。
+    // 音声のデコードはこの後、待たずにバックグラウンドで進める。
     createPadElements();
 
     const rows = parseInt(gridRowsInput.value) || 4;
@@ -4712,6 +4881,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectPad(selectedPadIndex, true);
       }
     }
+
+    // 音声の準備はバックグラウンドで（await しない＝画面が固まらない）
+    ensureCurrentPageAudioReady();
   });
 
   // ページ名のダブルクリック編集
@@ -4844,10 +5016,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           waveformCache[i] = null;
         }
 
-        // 【改良版】インポート後、今表示しているページぶんだけデコードする
-        await ensureCurrentPageAudioReady();
-
-        // 全パッドの描画を更新
+        // 【改良版v2】まず登録内容を画面に反映する（デコードは待たない）
         const rows = parseInt(gridRowsInput.value) || 4;
         const cols = parseInt(gridColsInput.value) || 4;
         const totalPads = rows * cols;
@@ -4855,11 +5024,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (let i = 0; i < totalPads; i++) {
           updatePadUI(pageOffset + i);
         }
-        
+
         // 選択をリセット
         clearSelection();
-        
-        setStatus('プリセットのインポートが完了しました。');
+
+        setStatus('プリセットのインポートが完了しました。音声はこの後、順に準備されます。');
+
+        // 音声の準備はバックグラウンドで
+        ensureCurrentPageAudioReady();
       } catch (err) {
         console.error(err);
         setStatus('プリセットのインポートに失敗しました。ファイルが壊れているか、形式が違います。', 'error');
@@ -4970,9 +5142,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           });
           
-          // 【改良版】切り替え先ページの音声を用意（audioCtx未生成ならここでは何もせず、
+          // 【改良版v2】切り替え先ページの音声準備は待たない（audioCtx未生成なら
           // 後で unlockAudio() 実行時にその時点の currentPage を見て自動で用意される）
-          await ensureCurrentPageAudioReady();
+          ensureCurrentPageAudioReady();
 
           // グリッドを再生成
           createPadElements();
