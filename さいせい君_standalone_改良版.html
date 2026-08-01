@@ -5823,7 +5823,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.style.setProperty('--pad-scale', 1.0);
     
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (isTouchDevice) {
+
+    // 【v11】登録済みの曲があるかを数える。
+    // iOSは「人が画面を触った、まさにその瞬間」にしか音声を読み込めないため、
+    // 曲があるのに触られていない間は、何をすればよいかをはっきり出す。
+    let waitingSongs = 0;
+    for (let i = 0; i < MAX_PADS; i++) {
+      if (engine.hasAudio(i) && !engine.isArmed(i)) waitingSongs++;
+    }
+
+    if (waitingSongs > 0) {
+      setStatus(`▼ 画面をどこでもいいので 1回タップしてください（${waitingSongs}曲の準備が始まります）`, 'loading');
+    } else if (isTouchDevice) {
       setStatus('アプリケーションが起動しました。空のパッドをダブルタップして音声ファイルを選択してください。');
     } else {
       setStatus('アプリケーションが起動しました。音声をドラッグ＆ドロップしてロードしてください。');
