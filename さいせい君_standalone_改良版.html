@@ -2996,6 +2996,8 @@ class PondashiAudioEngine {
     if (!pad || pad.slot < 0) return;
     const slot = this.slots[pad.slot];
     if (slot) {
+      // 【改良版v3.1 修正1-b】保留中の頭出しがあれば取り消す
+      if (slot._seekTimer) { clearTimeout(slot._seekTimer); slot._seekTimer = null; }
       try { slot.el.pause(); } catch (e) {}
       try { slot.el.removeAttribute('src'); slot.el.load(); } catch (e) {}
       slot.padIndex = -1;
@@ -3328,15 +3330,19 @@ class PondashiAudioEngine {
     this.initAudio();
 
     const blob = file;
-    const url = URL.createObjectURL(blob);
-    let duration = 0;
-    try {
-      duration = await this._probeDuration(url);
-    } catch (e) {
-      try { URL.revokeObjectURL(url); } catch (e2) {}
-      throw new Error('対応していない音声形式か、ファイルが破損しています。');
-    }
-    try { URL.revokeObjectURL(url); } catch (e) {}
+
+    // 【修正2-1】登録時に曲の長さを測るのをやめた。
+    //
+    // 以前はここで _probeDuration() を呼んでいた。あれは「その場で新しい<audio>要素を
+    // 作って読み込ませる」作りだが、iOSは "人が画面を触った、まさにその瞬間に鳴らした
+    // 要素" しか読み込まない。作りたてのその要素は永久に読み込まれず、結果として
+    // 制限時間の15秒をまるごと待ったうえで 0 を返していた。
+    // ＝ 1曲登録するたびに15秒を捨てて、得ている情報はゼロ。12曲で3分。
+    //
+    // 曲の長さは armPad() が <audio> の el.duration から読み取って
+    // _cacheDuration() に保存してくれる（3141行あたり）ので、ここで測る必要はない。
+    // 登録直後に長さが 0:00:00 と出るのは、iPadでは修正前もそうなっていた挙動。
+    const duration = 0;
 
     const currentName = this.pads[index].name;
     const isDefaultName = currentName === '空のパッド' || currentName === '';
@@ -3524,20 +3530,38 @@ class PondashiAudioEngine {
     const slot = instance.slot;
     if (slot) {
       slot.busy = false;
-      if (instance.isSpare) {
-        try { el.removeAttribute('src'); el.load(); } catch (e) {}
-        slot.padIndex = -1;
-      } else {
-        // 次に押されたとき即座に鳴るよう、開始位置へ戻しておく
-        const pad = this.pads[index];
-        try { el.currentTime = this._boundedOffset(pad, el); } catch (e) {}
-      }
+
+      // 【改良版v3.1 修正1-a】音量つまみは 0 のままにしておく。
+      // 旧: ここで 1.0（最大）に戻していた。
+      // iPadでは pause() を呼んでも実際に音が止まるまでにわずかな間があり、
+      // その間に音量が最大へ戻るため、まだ流れている音の断片が
+      // 最大音量で漏れていた（停止・クロスフェードの最後に一瞬だけ
+      // 大きな音が鳴る症状の直接の原因）。
+      // 次に鳴らすときは playPad が必ず正しい音量を設定し直すので、
+      // ここで 0 のまま放置しても支障はない。
       if (slot.gainNode && this.audioCtx) {
         try {
           const now = this.audioCtx.currentTime;
           slot.gainNode.gain.cancelScheduledValues(now);
-          slot.gainNode.gain.setValueAtTime(1.0, now);
+          slot.gainNode.gain.setValueAtTime(0, now);
         } catch (e) {}
+      }
+
+      if (instance.isSpare) {
+        try { el.removeAttribute('src'); el.load(); } catch (e) {}
+        slot.padIndex = -1;
+      } else {
+        // 【改良版v3.1 修正1-b】開始位置への頭出しは、pause() が落ち着いてから行う。
+        // 旧: pause() の直後に currentTime を書き換えていた。
+        // iPadでは pause 直後のシークが読み込みのやり直しを引き起こし、
+        // 次に押したときの再生開始がおかしくなっていた。
+        const pad = this.pads[index];
+        if (slot._seekTimer) { clearTimeout(slot._seekTimer); slot._seekTimer = null; }
+        slot._seekTimer = setTimeout(() => {
+          slot._seekTimer = null;
+          if (slot.busy) return; // その間に鳴り始めていたら触らない
+          try { el.currentTime = this._boundedOffset(pad, el); } catch (e) {}
+        }, 250);
       }
     }
 
