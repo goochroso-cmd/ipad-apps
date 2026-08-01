@@ -2847,12 +2847,17 @@ class PondashiAudioEngine {
 
   // データベースからすべての設定と音声をロード
   async loadAllPads() {
+    // 【一時診断・v11】どこで止まるかを画面に出す。動作は変えていない。
+    const mark = (t) => { try { if (window.__diagMark) window.__diagMark(t); } catch (e) {} };
+
+    mark('起動②：保存庫を開いています…');
     try {
       await this.initDB();
     } catch (e) {
       console.warn('initDB failed, running in memory-only:', e);
     }
-    
+    mark('起動③：保存庫が開きました。');
+
     if (!this.db) {
       console.warn('Running in memory-only mode. Audio will not be persisted.');
       this._applyCachedDurations();
@@ -2863,10 +2868,18 @@ class PondashiAudioEngine {
       try {
         const transaction = this.db.transaction([this.storeName], 'readonly');
         const store = transaction.objectStore(transaction.objectStoreNames[0]);
+
+        // 【一時診断・v11】取り出しが途中で中断/失敗したときも画面に出す。
+        // ここでは resolve せず、表示するだけ（動作は変えていない）。
+        transaction.onabort = () => mark('起動④：×取り出しが中断されました');
+        transaction.onerror = () => mark('起動④：×取り出しでエラーが起きました');
+
+        mark('起動④：曲データを取り出しています…');
         const request = store.getAll();
 
         request.onsuccess = (event) => {
           const results = event.target.result;
+          mark(`起動⑤：${results.length}件を取り出しました。整えています…`);
 
           // 【改良版】起動時に全パッドの音声を一気にデコードするのはやめる。
           // ここでは設定と生データ(audioData)だけを読み込み、デコード（重い処理）は
@@ -2884,6 +2897,7 @@ class PondashiAudioEngine {
           }
           // 旧データには duration が無いので、キャッシュから補う
           this._applyCachedDurations();
+          mark('起動⑥：読み出し完了。');
           resolve(this.pads);
         };
 
@@ -5734,7 +5748,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  setStatus('IndexedDB からオーディオをロードしています...', 'loading');
+  // 【一時診断・v11】起動が止まる場所を特定するための表示用の橋渡し。
+  // engine クラスの中からは setStatus を直接呼べないため、ここで窓口を作っておく。
+  // ★原因が分かったら、この2行と loadAllPads 内の __diagMark 呼び出しを消してよい。
+  window.__diagMark = (text) => { try { setStatus(text, 'loading'); } catch (e) {} };
+
+  setStatus('起動①：保存庫の準備に入ります…', 'loading');
   
   try {
     // オーディオコンテキストはダミー生成のみしておき、後で再初期化
