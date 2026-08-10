@@ -3,7 +3,7 @@
 // ※ アプリごとに sw.js を分けると同じスコープで競合し、片方しか動かなくなるため
 //    意図的に「1つの共通 sw.js」に統合しています。
 
-const CACHE_NAME = 'ipad-apps-cache-v13';
+const CACHE_NAME = 'ipad-apps-cache-v14';
 
 const ASSETS = [
   './',
