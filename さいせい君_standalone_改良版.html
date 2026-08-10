@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-10 v13</span>
+      <span class="app-version" id="appVersion">2026-08-10 v15 測定版</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -5999,6 +5999,46 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.closePath();
   ctx.fill();
 }
+
+</script>
+<script>
+/* 【測定版 v15 2026-08-10】動作は一切変えない。押した瞬間のiPadの状態を画面に出すだけ。 */
+(function () {
+  if (!window.HTMLMediaElement || !HTMLMediaElement.prototype.play) return;
+  var box = null, n = 0, lines = [];
+  function ensureBox() {
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'sokuteiBox';
+    box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:96vw;'
+      + 'background:rgba(0,0,0,0.9);color:#ffd60a;border:3px solid #ffd60a;border-radius:10px;'
+      + 'padding:10px 14px;font-size:1.05rem;font-weight:700;line-height:1.5;'
+      + 'font-family:-apple-system,sans-serif;white-space:pre;';
+    box.addEventListener('click', function () { lines = []; n = 0; box.textContent = '測定: 消去しました'; });
+    (document.body || document.documentElement).appendChild(box);
+    return box;
+  }
+  function fmt(el) {
+    var b = '';
+    try {
+      var r = el.buffered, parts = [];
+      for (var i = 0; i < r.length; i++) parts.push(r.start(i).toFixed(1) + '〜' + r.end(i).toFixed(1));
+      b = r.length ? (r.length + '本 ' + parts.join(',')) : '0本（からっぽ）';
+    } catch (e) { b = '読めず'; }
+    var cur = 0; try { cur = el.currentTime || 0; } catch (e) {}
+    return '#' + (++n) + ' 手元のデータ=' + b + '\n    状態rs=' + el.readyState + '  位置=' + cur.toFixed(2) + '秒';
+  }
+  var orig = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () {
+    try {
+      var t = fmt(this);
+      lines.push(t);
+      if (lines.length > 4) lines.shift();
+      ensureBox().textContent = lines.join('\n');
+    } catch (e) {}
+    return orig.apply(this, arguments);
+  };
+})();
 
 </script>
 </body>
