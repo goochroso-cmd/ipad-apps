@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v26 実験版★AB比べ</span>
+      <span class="app-version" id="appVersion">2026-08-11 v27 本番</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -5999,135 +5999,6 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.closePath();
   ctx.fill();
 }
-
-</script>
-<script>
-/* 【実験版 v26 2026-08-11】★本番用ではない★
-   アプリ本体の再生処理には触っていない。右下にテスト用のボタンを足すだけ。
-   A: 同じ箱をそのまま鳴らす（＝ふだんの2回目）
-   B: 同じ箱の src を入れ直してから鳴らす（＝1回目と同じ条件）
-   測り方を画面の更新ごと（約16ミリ秒）に細かくして、巻き戻りを全部拾う。 */
-(function () {
-  function ready(fn) {
-    if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(fn, 1200);
-    else document.addEventListener('DOMContentLoaded', function () { setTimeout(fn, 1200); });
-  }
-  ready(function () {
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99999;max-width:66vw;'
-      + 'background:rgba(0,0,0,0.93);border:3px solid #ff453a;border-radius:12px;padding:12px;'
-      + 'font-family:-apple-system,sans-serif;';
-    var t = document.createElement('div');
-    t.textContent = '★実験版 A/B くらべ';
-    t.style.cssText = 'color:#ff453a;font-size:1.05rem;font-weight:800;margin-bottom:8px;';
-    wrap.appendChild(t);
-    function mkBtn(label, color) {
-      var b = document.createElement('button');
-      b.textContent = label;
-      b.style.cssText = 'display:block;width:100%;margin:6px 0;padding:14px 16px;font-size:1.0rem;'
-        + 'font-weight:800;color:#000;background:' + color + ';border:0;border-radius:10px;';
-      wrap.appendChild(b);
-      return b;
-    }
-    var out = document.createElement('div');
-    out.style.cssText = 'color:#ffd60a;font-size:0.92rem;font-weight:700;line-height:1.4;'
-      + 'white-space:pre;margin-top:8px;';
-    out.textContent = '先にパッドを1回鳴らしてから\nA と B を交互に押して聴きくらべる';
-
-    var box = null;      /* 使い回す箱 */
-    var raf = null;
-
-    function firstPad() {
-      try {
-        if (typeof engine === 'undefined' || !engine || !engine.pads) return -1;
-        for (var i = 0; i < engine.pads.length; i++) if (engine.pads[i] && engine.pads[i].audioBlob) return i;
-      } catch (e) {}
-      return -1;
-    }
-    function makeBox() {
-      var idx = firstPad();
-      if (idx < 0) { out.textContent = '曲の入ったパッドがありません'; return null; }
-      var ctx = (typeof engine !== 'undefined' && engine) ? engine.audioCtx : null;
-      if (!ctx) { out.textContent = '音の装置がまだ動いていません\n先にパッドを1回鳴らして'; return null; }
-      var url = URL.createObjectURL(engine.pads[idx].audioBlob);
-      var el = new Audio();
-      el.preload = 'auto'; el.setAttribute('playsinline', ''); el.src = url;
-      var src, gain;
-      try {
-        src = ctx.createMediaElementSource(el);
-        gain = ctx.createGain(); gain.gain.value = 0.3;
-        src.connect(gain); gain.connect(ctx.destination);
-      } catch (e) { out.textContent = '繋げません: ' + e; return null; }
-      box = { el: el, src: src, gain: gain, url: url, ctx: ctx, idx: idx, blob: engine.pads[idx].audioBlob };
-      return box;
-    }
-    function stopAll() {
-      if (raf) { cancelAnimationFrame(raf); raf = null; }
-      if (box) { try { box.el.pause(); } catch (e) {} }
-    }
-    function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
-
-    function measure(label) {
-      var t0 = now(), prev = -1, events = [], stalls = 0, stallFrom = -1, started = null;
-      var onPlaying = function () { if (started === null) started = Math.round(now() - t0); };
-      box.el.addEventListener('playing', onPlaying);
-      function step() {
-        var t = 0;
-        try { t = box.el.currentTime || 0; } catch (e) {}
-        var ms = Math.round(now() - t0);
-        if (prev >= 0) {
-          if (t < prev - 0.004) { if (events.length < 5) events.push({ ms: ms, d: (t - prev) }); }
-          else if (t === prev) { if (stallFrom < 0) stallFrom = ms; }
-          else { if (stallFrom >= 0 && ms - stallFrom >= 120) stalls++; stallFrom = -1; }
-        }
-        prev = t;
-        if (ms < 1600) { raf = requestAnimationFrame(step); return; }
-        try { box.el.removeEventListener('playing', onPlaying); } catch (e) {}
-        var s = '【' + label + '】鳴り出し=' + (started === null ? '来ず' : started + 'ミリ秒')
-          + '\n 巻き戻り ' + events.length + '回';
-        events.forEach(function (e) { s += '\n  ' + e.ms + 'ミリ秒 ' + e.d.toFixed(3) + '秒'; });
-        s += '\n 途中で止まった回数 ' + stalls;
-        out.textContent = s;
-      }
-      raf = requestAnimationFrame(step);
-    }
-
-    /* A: 同じ箱をそのまま鳴らす（ふだんの2回目） */
-    mkBtn('A ふつうに鳴らす（そのまま）', '#ffd60a').addEventListener('click', function () {
-      stopAll();
-      if (!box && !makeBox()) return;
-      out.textContent = '【A】測定中…';
-      try { box.el.currentTime = 0; } catch (e) {}
-      try { box.gain.gain.setValueAtTime(0.3, box.ctx.currentTime); } catch (e) {}
-      measure('A そのまま');
-      try { box.el.play(); } catch (e) {}
-    });
-
-    /* B: src を入れ直してから鳴らす（1回目と同じ条件） */
-    mkBtn('B 入れ直して鳴らす', '#7CFC9B').addEventListener('click', function () {
-      stopAll();
-      if (!box && !makeBox()) return;
-      out.textContent = '【B】入れ直し中…';
-      try { if (box.url) URL.revokeObjectURL(box.url); } catch (e) {}
-      try { box.url = URL.createObjectURL(box.blob); } catch (e) {}
-      var el = box.el;
-      var go = function () {
-        el.removeEventListener('canplay', go);
-        try { el.currentTime = 0; } catch (e) {}
-        try { box.gain.gain.setValueAtTime(0.3, box.ctx.currentTime); } catch (e) {}
-        measure('B 入れ直し');
-        try { el.play(); } catch (e) {}
-      };
-      el.addEventListener('canplay', go);
-      try { el.src = box.url; el.load(); } catch (e) {}
-      setTimeout(function () { if (el.readyState >= 3) go(); }, 2000);
-    });
-
-    mkBtn('■ 止める', '#bbbbbb').addEventListener('click', function () { stopAll(); out.textContent = '止めました'; });
-    wrap.appendChild(out);
-    document.body.appendChild(wrap);
-  });
-})();
 
 </script>
 </body>
