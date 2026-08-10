@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v24 実験版★③テスト</span>
+      <span class="app-version" id="appVersion">2026-08-11 v25 本番</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -5999,140 +5999,6 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.closePath();
   ctx.fill();
 }
-
-</script>
-<script>
-/* 【実験版 v24 2026-08-11】★本番用ではない★
-   アプリ本体の再生処理には触っていない。右下にテスト用のボタンを足すだけ。
-   ③が本命: 消音のまま先に走らせ、巻き戻りを通過させてから頭に戻し、音量を上げる。
-   知りたいのは「頭に戻したあと、また巻き戻るか」の一点。 */
-(function () {
-  function ready(fn) {
-    if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(fn, 1200);
-    else document.addEventListener('DOMContentLoaded', function () { setTimeout(fn, 1200); });
-  }
-  ready(function () {
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99999;max-width:64vw;'
-      + 'background:rgba(0,0,0,0.93);border:3px solid #ff453a;border-radius:12px;padding:12px;'
-      + 'font-family:-apple-system,sans-serif;';
-    var title = document.createElement('div');
-    title.textContent = '★実験版 テスト再生';
-    title.style.cssText = 'color:#ff453a;font-size:1.05rem;font-weight:800;margin-bottom:8px;';
-    wrap.appendChild(title);
-    function mkBtn(label, color) {
-      var b = document.createElement('button');
-      b.textContent = label;
-      b.style.cssText = 'display:block;width:100%;margin:6px 0;padding:14px 16px;font-size:1.02rem;'
-        + 'font-weight:800;color:#000;background:' + color + ';border:0;border-radius:10px;';
-      wrap.appendChild(b);
-      return b;
-    }
-    var out = document.createElement('div');
-    out.style.cssText = 'color:#ffd60a;font-size:0.92rem;font-weight:700;line-height:1.4;'
-      + 'white-space:pre;margin-top:8px;';
-    out.textContent = '（先にパッドを1回鳴らしてから）';
-    var current = null, timers = [];
-    function clearTimers() { timers.forEach(function (t) { try { clearTimeout(t); clearInterval(t); } catch (e) {} }); timers = []; }
-    function stopCurrent() {
-      clearTimers();
-      if (!current) return;
-      try { current.el.pause(); } catch (e) {}
-      try { if (current.gain) current.gain.disconnect(); } catch (e) {}
-      try { if (current.src) current.src.disconnect(); } catch (e) {}
-      try { current.el.removeAttribute('src'); current.el.load(); } catch (e) {}
-      try { if (current.url) URL.revokeObjectURL(current.url); } catch (e) {}
-      current = null;
-    }
-    function firstPad() {
-      try {
-        if (typeof engine === 'undefined' || !engine || !engine.pads) return -1;
-        for (var i = 0; i < engine.pads.length; i++) if (engine.pads[i] && engine.pads[i].audioBlob) return i;
-      } catch (e) {}
-      return -1;
-    }
-    function setup(vol) {
-      var idx = firstPad();
-      if (idx < 0) { out.textContent = '曲の入ったパッドがありません'; return null; }
-      var ctx = (typeof engine !== 'undefined' && engine) ? engine.audioCtx : null;
-      if (!ctx) { out.textContent = '音の装置がまだ動いていません\n先にパッドを1回鳴らして'; return null; }
-      var url = URL.createObjectURL(engine.pads[idx].audioBlob);
-      var el = new Audio();
-      el.preload = 'auto'; el.setAttribute('playsinline', ''); el.src = url;
-      var src, gain;
-      try {
-        src = ctx.createMediaElementSource(el);
-        gain = ctx.createGain();
-        gain.gain.value = vol;
-        src.connect(gain); gain.connect(ctx.destination);
-      } catch (e) { out.textContent = '繋げません: ' + e; return null; }
-      current = { el: el, src: src, gain: gain, url: url, ctx: ctx, idx: idx };
-      return current;
-    }
-    function track(label, startAt, samples, done) {
-      var pos = [], k = 0, prev = -1, drop = null;
-      var iv = setInterval(function () {
-        var t = 0;
-        try { t = current.el.currentTime || 0; } catch (e) {}
-        if (prev >= 0 && t < prev - 0.02 && drop === null) drop = Math.round((k + 1) * 100);
-        prev = t; pos.push(t.toFixed(2)); k++;
-        if (k >= samples) {
-          clearInterval(iv);
-          done(pos, drop);
-        }
-      }, 100);
-      timers.push(iv);
-    }
-    function fmt(pos) {
-      var s = '';
-      for (var i = 0; i < pos.length; i += 5) s += (i ? '\n      ' : ' ') + pos.slice(i, i + 5).join(' ');
-      return s;
-    }
-
-    /* ① 新しい箱＋接続あり（比較用・既知: 巻き戻る） */
-    mkBtn('① 新しい箱＋接続 音量0.3', '#ffd60a').addEventListener('click', function () {
-      stopCurrent();
-      var c = setup(0.3); if (!c) return;
-      out.textContent = '【①新しい箱＋接続】測定中…';
-      track('①', 0, 15, function (pos, drop) {
-        out.textContent = '【①新しい箱＋接続】音量0.30\n 位置' + fmt(pos)
-          + '\n 巻き戻り=' + (drop === null ? '★なし' : '★' + drop + 'ミリ秒');
-      });
-      try { c.el.play(); } catch (e) {}
-    });
-
-    /* ③ 本命: 消音で先に走らせる → 頭に戻す → 音量を上げる */
-    mkBtn('③ 消音で先走り→頭出し→音量up', '#7CFC9B').addEventListener('click', function () {
-      stopCurrent();
-      var c = setup(0.0001); if (!c) return;
-      out.textContent = '【③消音先走り】\n 前半: 消音で1.8秒走らせています…';
-      try { c.el.play(); } catch (e) {}
-      /* 前半: 巻き戻りが起きるか（消音なので聞こえない） */
-      track('前半', 0, 18, function (pos1, drop1) {
-        /* 頭に戻して音量を上げる。play() は呼ばない */
-        var t0 = 0;
-        try { c.el.currentTime = 0; } catch (e) {}
-        try { c.gain.gain.setValueAtTime(0.3, c.ctx.currentTime); } catch (e) {}
-        out.textContent = '【③消音先走り】\n 前半の巻き戻り=' + (drop1 === null ? 'なし' : '★' + drop1 + 'ミリ秒')
-          + '\n 後半: 頭に戻して音量を上げました。測定中…';
-        var t = setTimeout(function () {
-          track('後半', 0, 18, function (pos2, drop2) {
-            out.textContent = '【③消音で先走り→頭出し→音量up】'
-              + '\n 前半(消音)の巻き戻り=' + (drop1 === null ? 'なし' : '★' + drop1 + 'ミリ秒')
-              + '\n 後半(音あり)の位置' + fmt(pos2)
-              + '\n ★後半の巻き戻り=' + (drop2 === null ? '★なし（成功！）' : '★' + drop2 + 'ミリ秒（この案はダメ）')
-              + '\n 音は小さい？つまづく？（耳で判定）';
-          });
-        }, 60);
-        timers.push(t);
-      });
-    });
-
-    mkBtn('■ 止める', '#bbbbbb').addEventListener('click', function () { stopCurrent(); out.textContent = '止めました'; });
-    wrap.appendChild(out);
-    document.body.appendChild(wrap);
-  });
-})();
 
 </script>
 </body>
