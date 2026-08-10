@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-10 v14</span>
+      <span class="app-version" id="appVersion">2026-08-10 v13</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -2954,65 +2954,6 @@ class PondashiAudioEngine {
     return Math.max(0, Math.min(off, Math.max(0, dur - 0.05)));
   }
 
-  // 【修正4 2026-08-10】停止したあとの「温め」。
-  //
-  // iOS Safari は「人が画面を触った、まさにその瞬間」にしか音声を読み込まない。
-  // そのため停止して頭に巻き戻すと、iPadは読み込んでいた中身を捨て、
-  // 止まっている間は何も読み込まない（preload='auto' は無視される）。
-  // その状態で次に再生を押すと、手元にあるわずかな断片だけ鳴って息継ぎしてから
-  // 続きが鳴る＝「一瞬鳴って、つまづいて、始まる」症状になる。
-  //
-  // そこで停止の直後に、音を消したまま一瞬だけ鳴らして頭のぶんを読み込ませ、
-  // すぐ止めて開始位置へ戻しておく。次に押したときには手元にデータがある。
-  // 考え方は系統B（saisei-cuezy.html）の _primeElement と同じ。
-  _warmUp(slot, off) {
-    if (!slot || !slot.el || slot.busy) return;
-    const el = slot.el;
-    this._cancelWarmUp(slot);
-
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      if (slot._warmTimer) { clearTimeout(slot._warmTimer); slot._warmTimer = null; }
-      try { el.removeEventListener('playing', finish); } catch (e) {}
-      slot._warming = null;
-      // 本番の再生が始まっていたら、絶対に止めない。消音だけ解除する。
-      if (slot.busy) { el.muted = false; return; }
-      try { el.pause(); } catch (e) {}
-      el.muted = false;
-      // 温めで進んだぶんを開始位置へ戻す。
-      // ここは今読み込んだばかりの範囲内なので、重い読み直しにはならない見込み。
-      try { if (Math.abs((el.currentTime || 0) - off) > 0.02) el.currentTime = off; } catch (e) {}
-    };
-
-    try {
-      el.muted = true;
-      slot._warming = finish;
-      el.addEventListener('playing', finish);
-      // 保険。'playing' が来なくても必ず止める
-      slot._warmTimer = setTimeout(finish, 500);
-      const p = el.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => { el.muted = false; finish(); });
-      }
-    } catch (e) {
-      el.muted = false;
-      finish();
-    }
-  }
-
-  // 温めを打ち切る（再生が始まるときや、要素を手放すとき）
-  _cancelWarmUp(slot) {
-    if (!slot) return;
-    if (slot._warmTimer) { clearTimeout(slot._warmTimer); slot._warmTimer = null; }
-    if (slot._warming) {
-      try { slot.el.removeEventListener('playing', slot._warming); } catch (e) {}
-      slot._warming = null;
-    }
-    if (slot.el) { try { slot.el.muted = false; } catch (e) {} }
-  }
-
   // パッドに<audio>要素を割り当てる
   _assignSlot(index) {
     if (!this.slots || !this.slots.length) this._buildSlots();
@@ -3075,8 +3016,6 @@ class PondashiAudioEngine {
     if (slot) {
       // 【改良版v3.1 修正1-b】保留中の頭出しがあれば取り消す
       if (slot._seekTimer) { clearTimeout(slot._seekTimer); slot._seekTimer = null; }
-      // 【修正4 2026-08-10】温めが動いていれば打ち切る
-      this._cancelWarmUp(slot);
       try { slot.el.pause(); } catch (e) {}
       try { slot.el.removeAttribute('src'); slot.el.load(); } catch (e) {}
       slot.padIndex = -1;
@@ -3504,8 +3443,6 @@ class PondashiAudioEngine {
     if (!slot) return false;
 
     const el = slot.el;
-    // 【修正4 2026-08-10】停止後の「温め」が動いていたら、ここで打ち切って消音も解除する。
-    this._cancelWarmUp(slot);
 
     if (!pad.audioUrl) {
       try { pad.audioUrl = URL.createObjectURL(pad.audioBlob); } catch (e) { return false; }
@@ -3643,11 +3580,7 @@ class PondashiAudioEngine {
         slot._seekTimer = setTimeout(() => {
           slot._seekTimer = null;
           if (slot.busy) return; // その間に鳴り始めていたら触らない
-          const off = this._boundedOffset(pad, el);
-          try { el.currentTime = off; } catch (e) {}
-          // 【修正4 2026-08-10】巻き戻したあと、消音のまま一瞬だけ鳴らして
-          // 開始位置ぶんを読み込ませておく（下の _warmUp を参照）。
-          this._warmUp(slot, off);
+          try { el.currentTime = this._boundedOffset(pad, el); } catch (e) {}
         }, 250);
       }
     }
