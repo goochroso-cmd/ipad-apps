@@ -142,12 +142,15 @@ body.is-electron .app-title-container {
 }
 
 .app-version {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffd60a;
+  background: rgba(255, 214, 10, 0.12);
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 214, 10, 0.55);
+  white-space: nowrap;
 }
 
 .app-instructions {
@@ -2333,6 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
+      <span class="app-version" id="appVersion">2026-08-10 v13</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -3449,7 +3453,9 @@ class PondashiAudioEngine {
     }
 
     const off = this._boundedOffset(pad, el);
-    try { el.currentTime = off; } catch (e) {}
+    // 【修正3 2026-08-10】もう頭出し位置に居るなら currentTime を書かない。
+    // 書く＝シーク＝iPadでは読み込みのやり直しが走り、停止→再生で冒頭が途切れる原因になる。
+    try { if (Math.abs((el.currentTime || 0) - off) > 0.02) el.currentTime = off; } catch (e) {}
     // 開始位置が0のときだけブラウザ標準のループが使える。
     // 途中から始まる曲のループは 'ended' で自分で巻き戻す（下のonEndedを参照）。
     el.loop = !!(pad.loop && off <= 0.001);
