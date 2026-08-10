@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v17 測定版3</span>
+      <span class="app-version" id="appVersion">2026-08-11 v18 測定版4</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -6002,96 +6002,89 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
 
 </script>
 <script>
-/* 【測定版3 v17 2026-08-11】動作は一切変えない。押したあとの時間の流れを測るだけ。 */
+/* 【測定版4 v18 2026-08-11】動作は変えない。位置が戻る瞬間を捕まえるだけ。 */
 (function () {
-  var ctxs = [], gains = [];
-  var OrigAC = window.AudioContext || window.webkitAudioContext;
-  if (OrigAC) {
-    if (OrigAC.prototype && OrigAC.prototype.createGain) {
-      var og = OrigAC.prototype.createGain;
-      OrigAC.prototype.createGain = function () {
-        var g = og.apply(this, arguments);
-        try { gains.push(g); } catch (e) {}
-        return g;
-      };
-    }
-    var P = function () {
-      var c = new (Function.prototype.bind.apply(OrigAC, [null].concat([].slice.call(arguments))))();
-      ctxs.push(c);
-      return c;
-    };
-    P.prototype = OrigAC.prototype;
-    try { window.AudioContext = P; window.webkitAudioContext = P; } catch (e) {}
-  }
   if (!window.HTMLMediaElement || !HTMLMediaElement.prototype.play) return;
+  var box = null, n = 0, lines = [], last = 0, cur = null;
 
-  var box = null, n = 0, lines = [], last = 0;
+  /* 位置の書き込みを見張る（値は素通しする。書き換えていない） */
+  try {
+    var d = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
+    if (d && d.set && d.get) {
+      Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+        configurable: true,
+        enumerable: d.enumerable,
+        get: d.get,
+        set: function (v) {
+          try {
+            if (cur && cur.el === this) {
+              var ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - cur.t0);
+              if (cur.ev.length < 8) cur.ev.push('★書込' + (+v).toFixed(2) + '(' + ms + ')');
+            }
+          } catch (e) {}
+          return d.set.call(this, v);
+        }
+      });
+    }
+  } catch (e) {}
+
   function ensureBox() {
     if (box) return box;
     box = document.createElement('div');
     box.id = 'sokuteiBox';
     box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:96vw;'
       + 'background:rgba(0,0,0,0.92);color:#ffd60a;border:3px solid #ffd60a;border-radius:10px;'
-      + 'padding:10px 14px;font-size:1.0rem;font-weight:700;line-height:1.45;'
+      + 'padding:10px 14px;font-size:0.95rem;font-weight:700;line-height:1.4;'
       + 'font-family:-apple-system,sans-serif;white-space:pre;';
     box.addEventListener('click', function () { lines = []; n = 0; box.textContent = '測定: 消去しました'; });
     (document.body || document.documentElement).appendChild(box);
     return box;
   }
-  function jp(s) {
-    if (s === 'running') return '動';
-    if (s === 'suspended') return '★眠';
-    if (s === 'interrupted') return '★中断';
-    return s;
-  }
-  function padGain() {
-    var m = 0;
-    for (var i = 1; i < gains.length; i++) {
-      try { var v = gains[i].gain.value; if (v > m) m = v; } catch (e) {}
-    }
-    return m;
-  }
   function render() { try { ensureBox().textContent = lines.join('\n'); } catch (e) {} }
 
   var orig = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function () {
-    var el = this, rec = null;
+    var el = this;
     try {
       var now = Date.now();
       var gap = last ? ((now - last) / 1000).toFixed(1) + '秒ぶり' : '1回目';
       last = now;
-      var st = ctxs.length ? ctxs.map(function (c) { return jp(c.state); }).join('/') : '未';
-      rec = { id: ++n, head: '#' + n + ' ' + gap + '  装置=' + st + '  rs=' + el.readyState,
-              t0: (window.performance && performance.now) ? performance.now() : Date.now(),
-              start: null, pos: [], vol: [], ev: [] };
-      lines.push(rec.head + '\n 鳴り出し=測定中');
+      var rec = { el: el, id: ++n,
+        head: '#' + n + ' ' + gap + '  rs=' + el.readyState,
+        t0: (window.performance && performance.now) ? performance.now() : Date.now(),
+        pos: [], ev: [] };
+      cur = rec;
+      lines.push(rec.head + '\n 測定中…');
       if (lines.length > 2) lines.shift();
       render();
 
-      var evs = ['playing', 'waiting', 'stalled', 'suspend', 'seeking', 'pause', 'ended'];
+      var evs = ['playing', 'waiting', 'stalled', 'suspend', 'seeking', 'seeked', 'pause', 'ended', 'ratechange'];
       var offs = [];
       evs.forEach(function (name) {
         var h = function () {
           var ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - rec.t0);
-          if (name === 'playing' && rec.start === null) rec.start = ms;
-          if (rec.ev.length < 6) rec.ev.push(name + '(' + ms + ')');
+          if (rec.ev.length < 8) rec.ev.push(name + '(' + ms + ')');
         };
         el.addEventListener(name, h);
         offs.push(function () { try { el.removeEventListener(name, h); } catch (e) {} });
       });
 
-      var k = 0;
+      var k = 0, prev = -1, drop = null;
       var iv = setInterval(function () {
-        try { rec.pos.push((el.currentTime || 0).toFixed(2)); } catch (e) { rec.pos.push('?'); }
-        rec.vol.push(padGain().toFixed(2));
+        var t = 0;
+        try { t = el.currentTime || 0; } catch (e) {}
+        if (prev >= 0 && t < prev - 0.02 && drop === null) drop = Math.round((k + 1) * 100);
+        prev = t;
+        rec.pos.push(t.toFixed(2));
         k++;
-        if (k >= 6) {
+        if (k >= 12) {
           clearInterval(iv);
           offs.forEach(function (f) { f(); });
+          if (cur === rec) cur = null;
           var body = rec.head
-            + '\n 鳴り出し=' + (rec.start === null ? '来ず' : rec.start + 'ミリ秒')
-            + '\n 位置 ' + rec.pos.join(' ')
-            + '\n 音量 ' + rec.vol.join(' ')
+            + '\n 位置 ' + rec.pos.slice(0, 6).join(' ')
+            + '\n      ' + rec.pos.slice(6).join(' ')
+            + '\n 巻き戻り=' + (drop === null ? 'なし' : '★' + drop + 'ミリ秒あたり')
             + '\n 合図 ' + (rec.ev.length ? rec.ev.join(',') : 'なし');
           for (var i = 0; i < lines.length; i++) {
             if (lines[i].indexOf(rec.head) === 0) { lines[i] = body; break; }
