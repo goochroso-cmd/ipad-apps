@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v18 測定版4</span>
+      <span class="app-version" id="appVersion">2026-08-11 v19 検証版★音量注意</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -6002,45 +6002,42 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
 
 </script>
 <script>
-/* 【測定版4 v18 2026-08-11】動作は変えない。位置が戻る瞬間を捕まえるだけ。 */
+/* 【検証版 v19 2026-08-11】★本番用ではない★
+   Web Audio 経由を意図的に切って、位置の巻き戻りが消えるかを確かめるためだけの版。
+   createMediaElementSource をわざと失敗させる。アプリ側には既に
+   「失敗したら素の<audio>で鳴らす」という保険が入っているので、そこへ落ちる。
+   → 音量調整・フェード・クロスフェードは効かなくなる（音は常に最大）。 */
 (function () {
   if (!window.HTMLMediaElement || !HTMLMediaElement.prototype.play) return;
-  var box = null, n = 0, lines = [], last = 0, cur = null;
-
-  /* 位置の書き込みを見張る（値は素通しする。書き換えていない） */
+  var OrigAC = window.AudioContext || window.webkitAudioContext;
+  var cut = false;
   try {
-    var d = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
-    if (d && d.set && d.get) {
-      Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
-        configurable: true,
-        enumerable: d.enumerable,
-        get: d.get,
-        set: function (v) {
-          try {
-            if (cur && cur.el === this) {
-              var ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - cur.t0);
-              if (cur.ev.length < 8) cur.ev.push('★書込' + (+v).toFixed(2) + '(' + ms + ')');
-            }
-          } catch (e) {}
-          return d.set.call(this, v);
-        }
-      });
+    if (OrigAC && OrigAC.prototype && OrigAC.prototype.createMediaElementSource) {
+      OrigAC.prototype.createMediaElementSource = function () {
+        throw new Error('検証版: Web Audio 経由を意図的に切っています');
+      };
+      cut = true;
     }
   } catch (e) {}
 
+  var box = null, n = 0, lines = [], last = 0;
   function ensureBox() {
     if (box) return box;
     box = document.createElement('div');
     box.id = 'sokuteiBox';
     box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:96vw;'
-      + 'background:rgba(0,0,0,0.92);color:#ffd60a;border:3px solid #ffd60a;border-radius:10px;'
+      + 'background:rgba(0,0,0,0.92);color:#ffd60a;border:3px solid #ff453a;border-radius:10px;'
       + 'padding:10px 14px;font-size:0.95rem;font-weight:700;line-height:1.4;'
       + 'font-family:-apple-system,sans-serif;white-space:pre;';
     box.addEventListener('click', function () { lines = []; n = 0; box.textContent = '測定: 消去しました'; });
     (document.body || document.documentElement).appendChild(box);
     return box;
   }
-  function render() { try { ensureBox().textContent = lines.join('\n'); } catch (e) {} }
+  function head0() {
+    return '★検証版 音量つまみ・フェードは効きません\n Web Audio=' + (cut ? '切った' : '切れなかった');
+  }
+  function render() { try { ensureBox().textContent = head0() + '\n' + lines.join('\n'); } catch (e) {} }
+  try { setTimeout(render, 1500); } catch (e) {}
 
   var orig = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function () {
@@ -6049,21 +6046,19 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
       var now = Date.now();
       var gap = last ? ((now - last) / 1000).toFixed(1) + '秒ぶり' : '1回目';
       last = now;
-      var rec = { el: el, id: ++n,
-        head: '#' + n + ' ' + gap + '  rs=' + el.readyState,
+      var rec = { id: ++n, head: '#' + n + ' ' + gap + '  rs=' + el.readyState,
         t0: (window.performance && performance.now) ? performance.now() : Date.now(),
         pos: [], ev: [] };
-      cur = rec;
       lines.push(rec.head + '\n 測定中…');
       if (lines.length > 2) lines.shift();
       render();
 
-      var evs = ['playing', 'waiting', 'stalled', 'suspend', 'seeking', 'seeked', 'pause', 'ended', 'ratechange'];
+      var evs = ['playing', 'waiting', 'stalled', 'seeking', 'pause', 'ended'];
       var offs = [];
       evs.forEach(function (name) {
         var h = function () {
           var ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - rec.t0);
-          if (rec.ev.length < 8) rec.ev.push(name + '(' + ms + ')');
+          if (rec.ev.length < 6) rec.ev.push(name + '(' + ms + ')');
         };
         el.addEventListener(name, h);
         offs.push(function () { try { el.removeEventListener(name, h); } catch (e) {} });
@@ -6080,11 +6075,10 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
         if (k >= 12) {
           clearInterval(iv);
           offs.forEach(function (f) { f(); });
-          if (cur === rec) cur = null;
           var body = rec.head
             + '\n 位置 ' + rec.pos.slice(0, 6).join(' ')
             + '\n      ' + rec.pos.slice(6).join(' ')
-            + '\n 巻き戻り=' + (drop === null ? 'なし' : '★' + drop + 'ミリ秒あたり')
+            + '\n 巻き戻り=' + (drop === null ? '★なし（消えた）' : '★' + drop + 'ミリ秒あたり')
             + '\n 合図 ' + (rec.ev.length ? rec.ev.join(',') : 'なし');
           for (var i = 0; i < lines.length; i++) {
             if (lines[i].indexOf(rec.head) === 0) { lines[i] = body; break; }
