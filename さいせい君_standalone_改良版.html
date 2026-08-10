@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v21 本番</span>
+      <span class="app-version" id="appVersion">2026-08-11 v20 検証版2★音量試験</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -5999,6 +5999,229 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.closePath();
   ctx.fill();
 }
+
+</script>
+<script>
+/* 【検証版2 v20 2026-08-11】★本番用ではない★
+   1) Web Audio 経由を切る（v19と同じ。巻き戻りが消えることは実証済み）
+   2) そのうえで <audio> の音量を 0.3 に設定し、iPadが本当に無視するのかを確かめる
+   3) さらに 3秒かけて 0.3→1.0 へ手作りフェードを試す（効くかどうかを耳で確認）
+   engine のコードは1行も変えていない。 */
+(function () {
+  if (!window.HTMLMediaElement || !HTMLMediaElement.prototype.play) return;
+  var OrigAC = window.AudioContext || window.webkitAudioContext;
+  var cut = false;
+  try {
+    if (OrigAC && OrigAC.prototype && OrigAC.prototype.createMediaElementSource) {
+      OrigAC.prototype.createMediaElementSource = function () {
+        throw new Error('検証版: Web Audio 経由を意図的に切っています');
+      };
+      cut = true;
+    }
+  } catch (e) {}
+
+  var TEST_VOL = 0.3;
+  var box = null, n = 0, lines = [], last = 0;
+  function ensureBox() {
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'sokuteiBox';
+    box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:96vw;'
+      + 'background:rgba(0,0,0,0.92);color:#ffd60a;border:3px solid #ff453a;border-radius:10px;'
+      + 'padding:10px 14px;font-size:0.95rem;font-weight:700;line-height:1.4;'
+      + 'font-family:-apple-system,sans-serif;white-space:pre;';
+    box.addEventListener('click', function () { lines = []; n = 0; render(); });
+    (document.body || document.documentElement).appendChild(box);
+    return box;
+  }
+  function head0() {
+    return '★検証版2 音量が効くか試している\n WebAudio=' + (cut ? '切った' : '切れず')
+      + '  ねらいの音量=' + TEST_VOL.toFixed(2);
+  }
+  function render() { try { ensureBox().textContent = head0() + '\n' + lines.join('\n'); } catch (e) {} }
+  try { setTimeout(render, 1500); } catch (e) {}
+
+  var orig = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () {
+    var el = this;
+    var setOK = '?', readBack = '?';
+    try {
+      el.volume = TEST_VOL;
+      readBack = (el.volume === undefined ? '?' : (+el.volume).toFixed(2));
+      setOK = (Math.abs((el.volume || 0) - TEST_VOL) < 0.01) ? '★効いた' : '★無視された';
+    } catch (e) { setOK = '★例外'; }
+    try {
+      var now = Date.now();
+      var gap = last ? ((now - last) / 1000).toFixed(1) + '秒ぶり' : '1回目';
+      last = now;
+      var rec = { head: '#' + (++n) + ' ' + gap + '  音量書込=' + setOK + '(' + readBack + ')',
+        t0: (window.performance && performance.now) ? performance.now() : Date.now(),
+        pos: [], vol: [] };
+      lines.push(rec.head + '\n 測定中…');
+      if (lines.length > 2) lines.shift();
+      render();
+
+      /* 手作りフェード: 3秒かけて TEST_VOL → 1.0 */
+      var fadeStart = (window.performance && performance.now) ? performance.now() : Date.now();
+      var fadeIv = setInterval(function () {
+        var t = (((window.performance && performance.now) ? performance.now() : Date.now()) - fadeStart) / 3000;
+        if (t >= 1) { t = 1; clearInterval(fadeIv); }
+        try { el.volume = TEST_VOL + (1 - TEST_VOL) * t; } catch (e) { clearInterval(fadeIv); }
+      }, 50);
+
+      var k = 0, prev = -1, drop = null;
+      var iv = setInterval(function () {
+        var t = 0;
+        try { t = el.currentTime || 0; } catch (e) {}
+        if (prev >= 0 && t < prev - 0.02 && drop === null) drop = Math.round((k + 1) * 100);
+        prev = t;
+        rec.pos.push(t.toFixed(2));
+        try { rec.vol.push((+el.volume).toFixed(2)); } catch (e) { rec.vol.push('?'); }
+        k++;
+        if (k >= 12) {
+          clearInterval(iv);
+          var body = rec.head
+            + '\n 位置 ' + rec.pos.slice(0, 6).join(' ')
+            + '\n      ' + rec.pos.slice(6).join(' ')
+            + '\n 音量 ' + rec.vol.slice(0, 6).join(' ')
+            + '\n 巻き戻り=' + (drop === null ? '★なし' : '★' + drop + 'ミリ秒');
+          for (var i = 0; i < lines.length; i++) {
+            if (lines[i].indexOf(rec.head) === 0) { lines[i] = body; break; }
+          }
+          render();
+        }
+      }, 100);
+    } catch (e) {}
+    return orig.apply(this, arguments);
+  };
+})();
+
+</script>
+<script>
+/* 【実験版 v22 2026-08-11】★本番用ではない★
+   アプリ本体の再生処理には一切触っていない。画面の右下にテスト用のボタンを足すだけ。
+   ねらい: 「毎回まっさらな<audio>を作れば、Web Audioに繋いだままでも巻き戻らないか」を確かめる。
+   もし巻き戻らず、かつ音量も効くなら、音量とフェードを保ったまま息継ぎを消せる。 */
+(function () {
+  function ready(fn) {
+    if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(fn, 1200);
+    else document.addEventListener('DOMContentLoaded', function () { setTimeout(fn, 1200); });
+  }
+
+  ready(function () {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99999;max-width:60vw;'
+      + 'background:rgba(0,0,0,0.92);border:3px solid #ff453a;border-radius:12px;padding:12px;'
+      + 'font-family:-apple-system,sans-serif;';
+
+    var title = document.createElement('div');
+    title.textContent = '★実験版 テスト再生';
+    title.style.cssText = 'color:#ff453a;font-size:1.05rem;font-weight:800;margin-bottom:8px;';
+    wrap.appendChild(title);
+
+    function mkBtn(label, color) {
+      var b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = 'display:block;width:100%;margin:6px 0;padding:14px 16px;font-size:1.05rem;'
+        + 'font-weight:800;color:#000;background:' + color + ';border:0;border-radius:10px;';
+      wrap.appendChild(b);
+      return b;
+    }
+
+    var out = document.createElement('div');
+    out.style.cssText = 'color:#ffd60a;font-size:0.95rem;font-weight:700;line-height:1.45;'
+      + 'white-space:pre;margin-top:8px;';
+    out.textContent = '（ボタンを押すと結果が出ます）';
+
+    var current = null;
+    function stopCurrent() {
+      if (!current) return;
+      try { current.el.pause(); } catch (e) {}
+      try { if (current.gain) current.gain.disconnect(); } catch (e) {}
+      try { if (current.src) current.src.disconnect(); } catch (e) {}
+      try { current.el.removeAttribute('src'); current.el.load(); } catch (e) {}
+      try { if (current.url) URL.revokeObjectURL(current.url); } catch (e) {}
+      current = null;
+    }
+
+    function firstPadWithAudio() {
+      try {
+        if (!window.engine || !engine.pads) return -1;
+        for (var i = 0; i < engine.pads.length; i++) {
+          var p = engine.pads[i];
+          if (p && (p.audioBlob || p.audioData)) return i;
+        }
+      } catch (e) {}
+      return -1;
+    }
+
+    function runTest(useWebAudio, vol) {
+      stopCurrent();
+      var idx = firstPadWithAudio();
+      if (idx < 0) { out.textContent = '曲が登録されたパッドが見つかりません'; return; }
+      var pad = engine.pads[idx];
+      var blob = pad.audioBlob;
+      if (!blob) { out.textContent = '音のデータが Blob になっていません'; return; }
+
+      var url, el, src = null, gain = null;
+      try { url = URL.createObjectURL(blob); } catch (e) { out.textContent = 'URLを作れません'; return; }
+      el = new Audio();
+      el.preload = 'auto';
+      el.setAttribute('playsinline', '');
+      el.src = url;
+
+      if (useWebAudio) {
+        try {
+          var ctx = engine.audioCtx;
+          src = ctx.createMediaElementSource(el);
+          gain = ctx.createGain();
+          gain.gain.value = vol;
+          src.connect(gain);
+          gain.connect(ctx.destination);
+        } catch (e) {
+          out.textContent = 'Web Audio に繋げませんでした: ' + e;
+          return;
+        }
+      } else {
+        try { el.volume = vol; } catch (e) {}
+      }
+
+      current = { el: el, src: src, gain: gain, url: url };
+
+      var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      var pos = [], k = 0, prev = -1, drop = null;
+      var head = (useWebAudio ? '【新しい箱＋WebAudio接続】' : '【新しい箱＋接続なし】') + ' 音量' + vol.toFixed(2);
+      out.textContent = head + '\n 測定中…';
+
+      var iv = setInterval(function () {
+        var t = 0;
+        try { t = el.currentTime || 0; } catch (e) {}
+        if (prev >= 0 && t < prev - 0.02 && drop === null) drop = Math.round((k + 1) * 100);
+        prev = t;
+        pos.push(t.toFixed(2));
+        k++;
+        if (k >= 15) {
+          clearInterval(iv);
+          out.textContent = head
+            + '\n 位置 ' + pos.slice(0, 5).join(' ')
+            + '\n      ' + pos.slice(5, 10).join(' ')
+            + '\n      ' + pos.slice(10).join(' ')
+            + '\n 巻き戻り=' + (drop === null ? '★なし' : '★' + drop + 'ミリ秒')
+            + '\n 音は小さい？大きい？（耳で判定）';
+        }
+      }, 100);
+
+      try { el.play(); } catch (e) { out.textContent = head + '\n 再生できません: ' + e; }
+    }
+
+    mkBtn('① 新しい箱＋接続あり 音量0.3', '#ffd60a').addEventListener('click', function () { runTest(true, 0.3); });
+    mkBtn('② 新しい箱＋接続なし 音量0.3', '#8ecae6').addEventListener('click', function () { runTest(false, 0.3); });
+    mkBtn('■ 止める', '#bbbbbb').addEventListener('click', function () { stopCurrent(); out.textContent = '止めました'; });
+
+    wrap.appendChild(out);
+    document.body.appendChild(wrap);
+  });
+})();
 
 </script>
 </body>
