@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v28 修正版</span>
+      <span class="app-version" id="appVersion">2026-08-11 v30</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -3043,7 +3043,10 @@ class PondashiAudioEngine {
   }
 
   // <audio>要素が再生を始められる状態になるまで待つ
-  _waitReady(el, timeoutMs = 25000) {
+  // 【v30 修正B】25秒 → 6秒。
+  // 失敗が確定するまで25秒かかると、その間にパッドを押しても進行中の待ちに合流するだけで
+  // 何も起きない（＝押しても無反応に見える）。短くして、押し直しがすぐ効くようにする。
+  _waitReady(el, timeoutMs = 6000) {
     return new Promise((resolve, reject) => {
       // readyState 3 = HAVE_FUTURE_DATA。ここまで来れば再生を開始できる
       if (el.readyState >= 3) { resolve(); return; }
@@ -3151,6 +3154,16 @@ class PondashiAudioEngine {
         el.loop = false;
         if (el.getAttribute('src') !== pad.audioUrl) {
           el.src = pad.audioUrl;
+        }
+        // 【v30 修正A】まだ鳴らせる状態でないなら、同じ曲でも読み込みをやり直す。
+        //
+        // iOS が「人が触った」と認めるのは、実際にはパッドを押す行為であって、
+        // ファイル選択の画面から戻ってきた瞬間は認められないことがある。
+        // 認められなかった場合、src だけが残って読み込みは始まらず、
+        // 旧コードは「src が同じ」を理由に load() をやり直さなかった。
+        // その結果、押しても押しても復帰せず、再起動するまで「準備中…」のまま固まっていた。
+        // 押した瞬間は確実に「触った瞬間」なので、ここでやり直せば必ず読み込みが始まる。
+        if (el.readyState < 3) {
           try { el.load(); } catch (e) {}
         }
 
