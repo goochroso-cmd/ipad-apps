@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v27 本番</span>
+      <span class="app-version" id="appVersion">2026-08-11 v28 修正版</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -3236,7 +3236,11 @@ class PondashiAudioEngine {
 
   // パッド情報を保存 (音声バイナリ含む)
   savePad(index, config) {
-    this.pads[index] = { ...this.pads[index], ...config };
+    // 【修正2-2】新しい物体に作り直すのをやめ、その場で書き換える。
+    // 作り直すと、非同期で進行中の armPad() が掴んでいる「古い物体」に armed を書いてしまい、
+    // 画面から見える「新しい物体」は永久に準備できていない扱いのまま残る。
+    if (!this.pads[index]) this.pads[index] = {};
+    Object.assign(this.pads[index], config);
     return new Promise((resolve, reject) => {
       if (!this.db) {
         resolve();
@@ -3379,9 +3383,34 @@ class PondashiAudioEngine {
 
     if (duration > 0) this._cacheDuration(index, duration);
 
-    await this.savePad(index, padConfig);
-    // 登録した直後からすぐ鳴らせるようにしておく
-    try { await this.armPad(index); } catch (e) { console.warn('登録直後の準備に失敗:', e); }
+    // 【修正2-2】保存より先に、読み込みを始める。
+    //
+    // iOS は「人が画面を触った、まさにその瞬間」にしか <audio> の読み込みを始めない。
+    // 以前はここで先に savePad()（データベースへの書き込み）を await していたため、
+    // そこで“触った瞬間”の権利が切れ、あとから armPad() を呼んでも読み込みが始まらず、
+    // _waitReady の25秒をまるごと待って失敗し、パッドは「準備中…」のまま固まっていた。
+    // さらに失敗しても el.src は残るため、押し直しても load() が呼ばれず、
+    // 再読み込みするまで永久に復帰できなかった。
+    //
+    // 正しい順番:
+    //   1. 古い枠を確実に返す（枠の取り残しを防ぐ）
+    //   2. メモリ上のパッド情報をその場で書き換える（新しい物体は作らない）
+    //   3. await せずに armPad() を呼ぶ ＝ 触った瞬間のうちに el.load() が走る
+    //   4. データベースへの保存はそのあと
+    this._releasePadSlot(index);
+    if (!this.pads[index]) this.pads[index] = {};
+    Object.assign(this.pads[index], padConfig);
+
+    const armJob = this.armPad(index);
+
+    // armed / slot / audioUrl は保存対象ではない。ここで書き戻すと armPad() の成果を消す
+    const configToSave = { ...padConfig };
+    delete configToSave.armed;
+    delete configToSave.slot;
+    delete configToSave.audioUrl;
+    await this.savePad(index, configToSave);
+
+    try { await armJob; } catch (e) { console.warn('登録直後の準備に失敗:', e); }
     return this.pads[index];
   }
 
