@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v31</span>
+      <span class="app-version" id="appVersion">2026-08-11 v32</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -3163,7 +3163,9 @@ class PondashiAudioEngine {
         // 旧コードは「src が同じ」を理由に load() をやり直さなかった。
         // その結果、押しても押しても復帰せず、再起動するまで「準備中…」のまま固まっていた。
         // 押した瞬間は確実に「触った瞬間」なので、ここでやり直せば必ず読み込みが始まる。
-        if (el.readyState < 3) {
+        // 【v32 修正E-1】すでに「あとから待ち」で読み込みが進行中なら、load() をやり直さない。
+        // やり直すと、そこまで読めていた分が捨てられて振り出しに戻る。
+        if (el.readyState < 3 && !el.__lateWatch) {
           try { el.load(); } catch (e) {}
         }
 
@@ -3181,8 +3183,17 @@ class PondashiAudioEngine {
         pad.armed = true;
         return true;
       } catch (e) {
-        console.warn('パッド ' + index + ' の準備に失敗しました:', e);
+        // 【v32 修正E-2】時間切れになっても、読み込み自体は裏で続いている。
+        //
+        // v30 で待ち時間を 25秒 → 6秒 に縮めたが、初回起動のときは iPad が
+        // アプリ本体の保管庫づくりなどで忙しく、6秒に間に合わないことがある。
+        // それを「失敗」と決めつけて捨てていたため、パッドは「準備中…」のまま
+        // 二度と戻らなかった（＝再起動するまで押せない、の正体）。
+        //
+        // ここで諦めず、あとから読み込みが終わった瞬間に受け取れるよう見張っておく。
+        console.warn('パッド ' + index + ' の準備が時間内に終わりませんでした（あとから待ちに切り替えます）:', e);
         pad.armed = false;
+        this._watchLateReady(index);
         return false;
       } finally {
         delete this._armingPromises[index];
@@ -3191,6 +3202,52 @@ class PondashiAudioEngine {
 
     this._armingPromises[index] = job;
     return job;
+  }
+
+  // 【v32 修正E-3】時間切れのあとも読み込みを見張り、準備できた瞬間に「使える」に切り替える。
+  //
+  // <audio> は load() を呼んだあと、こちらが待つのをやめても読み込みを続けている。
+  // だから「待つのをやめる」ことと「諦める」ことは別。ここでは諦めない。
+  _watchLateReady(index) {
+    const pad = this.pads[index];
+    if (!pad || pad.slot < 0 || !this.slots) return;
+    const slot = this.slots[pad.slot];
+    if (!slot || !slot.el) return;
+    const el = slot.el;
+    if (el.__lateWatch) return; // 二重に見張らない
+
+    el.__lateWatch = true;
+    const stop = () => {
+      el.__lateWatch = false;
+      el.removeEventListener('canplay', onReady);
+      el.removeEventListener('canplaythrough', onReady);
+      el.removeEventListener('loadeddata', onReady);
+      el.removeEventListener('error', onError);
+    };
+    const onError = () => { stop(); };
+    const onReady = () => {
+      stop();
+      // 見張っている間に、その枠が別のパッドへ渡っていないかを確かめる
+      if (slot.padIndex !== index) return;
+      const p = this.pads[index];
+      if (!p) return;
+      try {
+        if (isFinite(el.duration) && el.duration > 0) {
+          p.duration = el.duration;
+          this._cacheDuration(index, el.duration);
+        }
+        const off = this._boundedOffset(p, el);
+        if (Math.abs(el.currentTime - off) > 0.02) el.currentTime = off;
+      } catch (e) {}
+      p.armed = true;
+      if (typeof this.onLateReady === 'function') {
+        try { this.onLateReady(index); } catch (e) { console.warn('onLateReady エラー:', e); }
+      }
+    };
+    el.addEventListener('canplay', onReady);
+    el.addEventListener('canplaythrough', onReady);
+    el.addEventListener('loadeddata', onReady);
+    el.addEventListener('error', onError);
   }
 
   // 旧名のまま呼ばれても動くようにしておく（互換用）
@@ -3414,29 +3471,16 @@ class PondashiAudioEngine {
     if (!this.pads[index]) this.pads[index] = {};
     Object.assign(this.pads[index], padConfig);
 
-    // 【v31 修正C】登録のときに armPad() を呼ぶのを、完全にやめた。
-    //
-    // v30 までは、ここで読み込みを始めていた。しかしそれが原因で次の穴が開いていた。
-    //   ・armPad() には「同じパッドの準備が進行中なら、その進行中の仕事をそのまま返す」
-    //     という重複防止がある（_armingPromises）。
-    //   ・登録で始めた準備が詰まっている間にパッドを押すと、押した側はその詰まった仕事に
-    //     合流するだけで、v30 の修正A（load() のやり直し）は一度も走らなかった。
-    //     ＝ 修正Aは、いちばん必要な場面でだけ素通りされていた。
-    //   ・さらに12曲を続けて登録すると、12個の <audio> が同時に読み込みを始めてしまう。
-    //
-    // 登録は「保存するだけ」にする。読み込みは押されたときだけ（triggerPlay → armPad）。
-    // 押した瞬間は iOS が確実に「人が触った」と認める瞬間なので、
-    // 失敗しても押し直せば必ずやり直せる形になる。
-    // 代償: 登録した直後のパッドは「準備中…」のままで、初回の押下で一拍待つ。
-    //       次回の起動時には armRange() がまとめて用意するので、本番には影響しない。
+    const armJob = this.armPad(index);
 
-    // armed / slot / audioUrl は保存対象ではない
+    // armed / slot / audioUrl は保存対象ではない。ここで書き戻すと armPad() の成果を消す
     const configToSave = { ...padConfig };
     delete configToSave.armed;
     delete configToSave.slot;
     delete configToSave.audioUrl;
     await this.savePad(index, configToSave);
 
+    try { await armJob; } catch (e) { console.warn('登録直後の準備に失敗:', e); }
     return this.pads[index];
   }
 
@@ -4052,6 +4096,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   engine = new PondashiAudioEngine();
+
+  // 【v32 修正E-4】時間切れのあとで準備が間に合った曲を、その場で「使える」表示に変える。
+  // 親分が画面を見ているだけで「遅れて追いついた」ことが分かるようにする。
+  engine.onLateReady = (index) => {
+    try { updatePadUI(index); } catch (e) {}
+    try { drawWaveform(index); } catch (e) {}
+    try {
+      const p = engine.pads[index];
+      setStatus(`「${(p && p.name) || ('パッド ' + (index + 1))}」の準備ができました。`, 'success');
+    } catch (e) {}
+  };
 
   // Electron環境の判定
   const isElectron = (typeof window !== 'undefined' && window.process && window.process.type === 'renderer') || navigator.userAgent.indexOf('Electron') >= 0;
