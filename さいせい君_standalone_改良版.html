@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v29</span>
+      <span class="app-version" id="appVersion">2026-08-11 v28 修正版</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -2727,19 +2727,7 @@ class PondashiAudioEngine {
     if (this.audioCtx) return;
 
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    // 【v29】息継ぎ対策 案2-a: 装置の既定(たいてい48000)ではなく、曲側に多い44100で作る。
-    // 数が食い違うと iPad が鳴らしながら裏で合わせている。その作業が巻き戻りの正体かもしれない。
-    // 指定が効かない端末もあるので、失敗したら従来どおり既定で作る。
-    try {
-      this.audioCtx = new AudioContextClass({ sampleRate: 44100 });
-    } catch (e) {
-      this.audioCtx = new AudioContextClass();
-    }
-    // 指定が本当に効いたかを画面の版数表示に出す（憶測で判断しないため）
-    try {
-      const vEl = document.getElementById('appVersion');
-      if (vEl) vEl.textContent = '2026-08-11 v29 / ' + this.audioCtx.sampleRate + 'Hz';
-    } catch (e) {}
+    this.audioCtx = new AudioContextClass();
     
     this.masterGainNode = this.audioCtx.createGain();
     this.masterGainNode.gain.value = 0.8;
