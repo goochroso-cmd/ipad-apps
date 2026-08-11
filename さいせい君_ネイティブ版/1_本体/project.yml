@@ -1,0 +1,58 @@
+name: Saisei
+options:
+  createIntermediateGroups: true
+
+schemes:
+  Saisei:
+    build:
+      targets:
+        Saisei: all
+
+settings:
+  base:
+    # opendisplay の project.pbxproj 280行目から実測した親分のチームID
+    DEVELOPMENT_TEAM: NY77VKCZ35
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "2.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Saisei:
+    type: application
+    platform: iOS
+    # ★ iPad Air 2 は iPadOS 15.8.8 で止まる。16以降は永久に来ない
+    deploymentTarget: "15.0"
+    sources:
+      - path: iOS
+        excludes:
+          - "Info.plist"
+          # ★ .js は Xcode が「プログラムの部品」と勘違いしてアプリに同梱しない。
+          #   ここで一度外して、すぐ下で「同梱するファイル」として入れ直している。
+          - "Resources/no_webaudio_patch.js"
+          - "Resources/export_to_swift.js"
+      - path: iOS/Resources/no_webaudio_patch.js
+        buildPhase: resources
+      - path: iOS/Resources/export_to_swift.js
+        buildPhase: resources
+    info:
+      path: iOS/Info.plist
+      properties:
+        # ★ アプリ名（2026-08-11 親分が決定）。ホーム画面のアイコンに出る名前
+        CFBundleDisplayName: iさいせい君
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+    settings:
+      base:
+        # 無料 Apple ID の3枠: OpenSidecar / さいせい君 / まるち君
+        PRODUCT_BUNDLE_IDENTIFIER: com.goochroso.saiseikun
+        PRODUCT_NAME: Saisei
+        # 1=iPhone 2=iPad。最終構想がiPhoneも含むので両方
+        TARGETED_DEVICE_FAMILY: "1,2"

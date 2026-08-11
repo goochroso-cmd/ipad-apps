@@ -1,0 +1,112 @@
+ERROR: The specified device was not found. (Name: 969586519c7581845d3d8485677653bae20168e7) (com.apple.dt.CoreDeviceError error 1000 (0x3E8))
+       DeviceName = 969586519c7581845d3d8485677653bae20168e7
+[....] Waiting for iOS device to be connected
+[....] Using 969586519c7581845d3d8485677653bae20168e7 (J82AP, iPad Air 2 (GSM), iphoneos, arm64, 15.8.8, 19H422) a.k.a. 'iPad (9)'.
+------ Install phase ------
+[  0%] Found 969586519c7581845d3d8485677653bae20168e7 (J82AP, iPad Air 2 (GSM), iphoneos, arm64, 15.8.8, 19H422) a.k.a. 'iPad (9)' connected through USB, beginning install
+[  5%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/META-INF/ to device
+[  6%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/META-INF/ to device
+[  6%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/META-INF/com.apple.ZipMetadata.plist to device
+[  7%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/META-INF/com.apple.ZipMetadata.plist to device
+[  7%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/_CodeSignature/ to device
+[  8%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/_CodeSignature/ to device
+[  8%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/_CodeSignature/CodeResources to device
+[  9%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/_CodeSignature/CodeResources to device
+[  9%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_4_fa.wav to device
+[ 10%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_4_fa.wav to device
+[ 11%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_4_fa.wav to device
+[ 11%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/no_webaudio_patch.js to device
+[ 12%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/no_webaudio_patch.js to device
+[ 12%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_7_si.wav to device
+[ 13%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_7_si.wav to device
+[ 14%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_7_si.wav to device
+[ 14%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_3_mi.wav to device
+[ 15%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_3_mi.wav to device
+[ 17%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_3_mi.wav to device
+[ 17%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_6_la.wav to device
+[ 18%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_6_la.wav to device
+[ 19%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_6_la.wav to device
+[ 19%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_5_so.wav to device
+[ 20%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_5_so.wav to device
+[ 21%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_5_so.wav to device
+[ 21%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Saisei to device
+[ 22%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Saisei to device
+[ 22%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_2_re.wav to device
+[ 23%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_2_re.wav to device
+[ 25%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_2_re.wav to device
+[ 25%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/__preview.dylib to device
+[ 26%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/__preview.dylib to device
+[ 26%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Saisei.debug.dylib to device
+[ 27%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Saisei.debug.dylib to device
+[ 28%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Saisei.debug.dylib to device
+[ 28%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 29%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 30%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 31%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 32%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 33%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 34%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 35%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 36%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 37%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 38%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 39%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 40%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/saisei_v32.html to device
+[ 40%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_9_re_hi.wav to device
+[ 41%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_9_re_hi.wav to device
+[ 42%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_9_re_hi.wav to device
+[ 42%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/embedded.mobileprovision to device
+[ 43%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/embedded.mobileprovision to device
+[ 43%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_8_do_hi.wav to device
+[ 44%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_8_do_hi.wav to device
+[ 45%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_8_do_hi.wav to device
+[ 45%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Info.plist to device
+[ 46%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/Info.plist to device
+[ 46%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_1_do.wav to device
+[ 47%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_1_do.wav to device
+[ 48%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/tone_1_do.wav to device
+[ 48%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/PkgInfo to device
+[ 49%] Copying /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app/PkgInfo to device
+[ 52%] CreatingStagingDirectory
+[ 57%] ExtractingPackage
+[ 60%] InspectingPackage
+[ 60%] TakingInstallLock
+[ 65%] PreflightingApplication
+[ 65%] InstallingEmbeddedProfile
+[ 70%] VerifyingApplication
+[ 75%] CreatingContainer
+[ 80%] InstallingApplication
+[ 85%] PostflightingApplication
+[ 90%] SandboxingApplication
+[ 95%] GeneratingApplicationMap
+[100%] Installed package /Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app
+------ Debug phase ------
+Starting debug of 969586519c7581845d3d8485677653bae20168e7 (J82AP, iPad Air 2 (GSM), iphoneos, arm64, 15.8.8, 19H422) a.k.a. 'iPad (9)' connected through USB...
+[  0%] Looking up developer disk image
+[ 95%] Developer disk image mounted successfully
+Symbol Path: /Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols
+[100%] Connecting to remote debug server
+-------------------------
+(lldb) command source -s 0 '/tmp/CBF0F44A-F364-4791-8BF4-7547CA9ED3FB/fruitstrap-lldb-prep-cmds-969586519c7581845d3d8485677653bae20168e7'
+Executing commands in '/tmp/CBF0F44A-F364-4791-8BF4-7547CA9ED3FB/fruitstrap-lldb-prep-cmds-969586519c7581845d3d8485677653bae20168e7'.
+(lldb)     platform select remote-'ios' --sysroot '/Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols'
+  Platform: remote-ios
+ Connected: no
+   Sysroot: /Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols
+  SDK Path: "/Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols"
+(lldb)     target create "/Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app"
+Current executable set to '/Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos/Saisei.app' (arm64).
+(lldb)     script fruitstrap_device_app="/private/var/containers/Bundle/Application/063AE138-DF2F-4995-8C7F-C98D90E92F81/Saisei.app"
+(lldb)     script fruitstrap_connect_url="connect://127.0.0.1:50141"
+(lldb)     script fruitstrap_output_path=""
+(lldb)     script fruitstrap_error_path=""
+(lldb)     target modules search-paths add /usr "/Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols/usr" /System "/Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols/System" "/private/var/containers/Bundle/Application/063AE138-DF2F-4995-8C7F-C98D90E92F81" "/Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos" "/var/containers/Bundle/Application/063AE138-DF2F-4995-8C7F-C98D90E92F81" "/Users/yama/Documents/Projects/さいせい君_ネイティブ版/1_本体/.build/Build/Products/Debug-iphoneos" /Developer "/Users/yama/Library/Developer/Xcode/iOS DeviceSupport/iPad5,4 15.8.8 (19H422)/Symbols/Developer"
+(lldb)     command script import "/tmp/CBF0F44A-F364-4791-8BF4-7547CA9ED3FB/fruitstrap_969586519c7581845d3d8485677653bae20168e7.py"
+(lldb)     command script add -f fruitstrap_969586519c7581845d3d8485677653bae20168e7.connect_command connect
+(lldb)     command script add -s asynchronous -f fruitstrap_969586519c7581845d3d8485677653bae20168e7.run_command run
+(lldb)     command script add -s asynchronous -f fruitstrap_969586519c7581845d3d8485677653bae20168e7.autoexit_command autoexit
+(lldb)     command script add -s asynchronous -f fruitstrap_969586519c7581845d3d8485677653bae20168e7.safequit_command safequit
+(lldb)     connect
+(lldb)     run
+success
+(lldb)     safequit
