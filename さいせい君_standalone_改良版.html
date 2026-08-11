@@ -2336,7 +2336,7 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion">2026-08-11 v30</span>
+      <span class="app-version" id="appVersion">2026-08-11 v31</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -3414,16 +3414,29 @@ class PondashiAudioEngine {
     if (!this.pads[index]) this.pads[index] = {};
     Object.assign(this.pads[index], padConfig);
 
-    const armJob = this.armPad(index);
+    // 【v31 修正C】登録のときに armPad() を呼ぶのを、完全にやめた。
+    //
+    // v30 までは、ここで読み込みを始めていた。しかしそれが原因で次の穴が開いていた。
+    //   ・armPad() には「同じパッドの準備が進行中なら、その進行中の仕事をそのまま返す」
+    //     という重複防止がある（_armingPromises）。
+    //   ・登録で始めた準備が詰まっている間にパッドを押すと、押した側はその詰まった仕事に
+    //     合流するだけで、v30 の修正A（load() のやり直し）は一度も走らなかった。
+    //     ＝ 修正Aは、いちばん必要な場面でだけ素通りされていた。
+    //   ・さらに12曲を続けて登録すると、12個の <audio> が同時に読み込みを始めてしまう。
+    //
+    // 登録は「保存するだけ」にする。読み込みは押されたときだけ（triggerPlay → armPad）。
+    // 押した瞬間は iOS が確実に「人が触った」と認める瞬間なので、
+    // 失敗しても押し直せば必ずやり直せる形になる。
+    // 代償: 登録した直後のパッドは「準備中…」のままで、初回の押下で一拍待つ。
+    //       次回の起動時には armRange() がまとめて用意するので、本番には影響しない。
 
-    // armed / slot / audioUrl は保存対象ではない。ここで書き戻すと armPad() の成果を消す
+    // armed / slot / audioUrl は保存対象ではない
     const configToSave = { ...padConfig };
     delete configToSave.armed;
     delete configToSave.slot;
     delete configToSave.audioUrl;
     await this.savePad(index, configToSave);
 
-    try { await armJob; } catch (e) { console.warn('登録直後の準備に失敗:', e); }
     return this.pads[index];
   }
 
