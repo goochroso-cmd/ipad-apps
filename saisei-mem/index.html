@@ -1,0 +1,3808 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>さいせい君 メモリ版 v33.1</title>
+  
+  <!-- PWA & iPad standalone configuration -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <style>
+
+/* v33: オフラインで確実に立ち上がるよう、ネット越しのフォント読み込みはやめた（iPad内蔵の書体を使う） */
+
+:root {
+  --pad-scale: 1.0;
+  /* Color Palette */
+  --bg-color: #08090d;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #151a24 0%, #08090d 70%);
+  --panel-bg: rgba(18, 22, 33, 0.45);
+  --panel-border: rgba(255, 255, 255, 0.06);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #4b5563;
+
+  /* Theme States */
+  --color-cyan: #00f2fe;
+  --color-cyan-glow: rgba(0, 242, 254, 0.35);
+  --color-rose: #ff007f;
+  --color-rose-glow: rgba(255, 0, 127, 0.35);
+  --color-purple: #9d4edd;
+  --color-purple-glow: rgba(157, 78, 221, 0.35);
+  --color-emerald: #00f5d4;
+  --color-emerald-glow: rgba(0, 245, 212, 0.35);
+  --color-yellow: #ffee32;
+  --color-yellow-glow: rgba(255, 238, 50, 0.35);
+  --color-orange: #ff9f1c;
+  --color-orange-glow: rgba(255, 159, 28, 0.35);
+  --color-red: #ff4d6d;
+  --color-red-glow: rgba(255, 77, 109, 0.35);
+  --color-blue: #00b4d8;
+  --color-blue-glow: rgba(0, 180, 216, 0.35);
+  --color-green: #70e000;
+  --color-green-glow: rgba(112, 224, 0, 0.35);
+  --color-pink: #ff70a6;
+  --color-pink-glow: rgba(255, 112, 166, 0.35);
+  --color-slate: #8e9aaf;
+  --color-slate-glow: rgba(142, 154, 175, 0.35);
+
+  /* Fonts */
+  --font-sans: -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --pad-title-size: 0.85rem;
+  --pad-time-size: 0.85rem;
+
+  /* Shadows & Blur */
+  --glass-blur: blur(16px);
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --glow-transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  height: 100% !important;
+  height: 100svh !important;
+  margin: 0;
+  padding: 0;
+  overflow: hidden !important;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-color);
+  background-image: var(--bg-gradient);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Header Section (macOS Hidden titlebar support) */
+header {
+  position: relative;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(8, 9, 13, 0.6);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--panel-border);
+}
+body.is-electron header {
+  -webkit-app-region: drag; /* Allows window dragging in Electron */
+}
+
+/* Title adjustments to push text away from the left window buttons in macOS */
+.app-title-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 0;
+}
+body.is-electron .app-title-container {
+  margin-left: 80px; /* Spacer for traffic lights in Electron titleBarStyle hiddenInset */
+  -webkit-app-region: no-drag;
+}
+
+.app-title-container h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  background: linear-gradient(90deg, #ffffff, var(--color-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.app-version {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffd60a;
+  background: rgba(255, 214, 10, 0.12);
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 214, 10, 0.55);
+  white-space: nowrap;
+}
+
+.app-instructions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-app-region: no-drag;
+}
+
+.inst-item {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.inst-badge {
+  background: rgba(0, 242, 254, 0.12);
+  color: var(--color-cyan);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  -webkit-app-region: no-drag;
+}
+
+/* Main Container Layout */
+main {
+  flex: 1 !important;
+  min-height: 0 !important;
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  overflow: hidden !important;
+  box-sizing: border-box;
+  transition: gap 0.3s ease;
+}
+
+/* Left Section: Soundboard Grid */
+.grid-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+.pad-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols, 3), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--grid-rows, 3), minmax(0, 1fr));
+  gap: calc(12px * var(--pad-scale, 1.0));
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+.pad {
+  background: var(--panel-bg);
+  border: 4px solid var(--panel-border);
+  border-radius: 12px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(14px * var(--pad-scale, 1.0));
+  min-height: 0;
+  height: 100%;
+  cursor: pointer;
+  overflow: hidden;
+  container-type: size;
+  transition: var(--glow-transition);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+}
+
+.pad:hover {
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Selected Pad highlight */
+.pad.selected {
+  border-width: 5px !important;
+  border-color: var(--accent-color) !important;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 20px var(--accent-glow) !important;
+}
+
+/* Pad states */
+.pad.empty {
+  border-style: dashed;
+  border-width: 4px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.pad.empty .pad-header,
+.pad.empty .pad-body,
+.pad.empty .pad-footer {
+  visibility: hidden !important;
+}
+
+.pad.empty:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pad.loaded {
+  --accent-color: var(--color-cyan);
+  --accent-glow: var(--color-cyan-glow);
+  border-color: var(--accent-color);
+}
+
+.pad.theme-cyan {
+  --accent-color: var(--color-cyan);
+  --accent-glow: var(--color-cyan-glow);
+}
+.pad.theme-rose {
+  --accent-color: var(--color-rose);
+  --accent-glow: var(--color-rose-glow);
+}
+.pad.theme-purple {
+  --accent-color: var(--color-purple);
+  --accent-glow: var(--color-purple-glow);
+}
+.pad.theme-emerald {
+  --accent-color: var(--color-emerald);
+  --accent-glow: var(--color-emerald-glow);
+}
+.pad.theme-yellow {
+  --accent-color: var(--color-yellow);
+  --accent-glow: var(--color-yellow-glow);
+}
+.pad.theme-orange {
+  --accent-color: var(--color-orange);
+  --accent-glow: var(--color-orange-glow);
+}
+.pad.theme-red {
+  --accent-color: var(--color-red);
+  --accent-glow: var(--color-red-glow);
+}
+.pad.theme-blue {
+  --accent-color: var(--color-blue);
+  --accent-glow: var(--color-blue-glow);
+}
+.pad.theme-green {
+  --accent-color: var(--color-green);
+  --accent-glow: var(--color-green-glow);
+}
+.pad.theme-pink {
+  --accent-color: var(--color-pink);
+  --accent-glow: var(--color-pink-glow);
+}
+.pad.theme-slate {
+  --accent-color: var(--color-slate);
+  --accent-glow: var(--color-slate-glow);
+}
+
+.pad.loaded:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* Active playback state */
+.pad.playing {
+  animation: pulse-glow 2s infinite alternate;
+  background: var(--accent-glow);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.pad.paused {
+  border-color: var(--color-yellow);
+  box-shadow: 0 0 12px var(--color-yellow-glow);
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 8px var(--accent-glow), inset 0 0 4px var(--accent-glow);
+  }
+  100% {
+    box-shadow: 0 0 20px var(--accent-glow), inset 0 0 8px var(--accent-glow);
+  }
+}
+
+.pad.playing.fading-out {
+  animation: metronome-blink 0.5s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+  border-style: dashed;
+  opacity: calc(0.35 + 0.65 * var(--fade-progress, 1)) !important;
+}
+
+.pad.playing.fading-out .pad-time-display {
+  animation: metronome-text-blink 0.5s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.pad.playing.fading-out .pad-progress-fill {
+  animation: metronome-progress-blink 0.5s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes metronome-blink {
+  0% {
+    border-color: var(--accent-color);
+    background: var(--accent-glow);
+    box-shadow: 0 0 calc(20px * var(--fade-progress, 1)) var(--accent-glow) !important;
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(18, 22, 33, 0.45);
+    box-shadow: none !important;
+  }
+}
+
+@keyframes metronome-text-blink {
+  0% {
+    color: var(--color-rose) !important;
+    opacity: 1;
+  }
+  100% {
+    color: rgba(255, 255, 255, 0.3) !important;
+    opacity: 0.5;
+  }
+}
+
+@keyframes metronome-progress-blink {
+  0% {
+    background-color: var(--accent-color) !important;
+    box-shadow: 0 0 8px var(--accent-color) !important;
+  }
+  100% {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Pad Content Details */
+.pad-header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.pad-key {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: linear-gradient(to bottom, #2e3545, #1b1f2b);
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #141722;
+  border-bottom: 2px solid #0f1118;
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.4);
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pad-header-center-indicators {
+  position: absolute;
+  left: 45%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.volume-indicator .vol-label {
+  font-size: 0.55rem;
+  font-weight: normal;
+  opacity: 0.75;
+  margin-right: 2px;
+}
+
+.pad.playing .pad-key {
+  transform: translateY(1px);
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.2);
+}
+
+.pad-index {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.pad-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 10px 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.pad-title {
+  font-size: var(--pad-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.pad.empty .pad-title {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.pad-time-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--pad-time-size);
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  margin-top: 8px;
+  width: 100%;
+  transition: var(--glow-transition);
+}
+
+.pad.playing .pad-time-display {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.time-elapsed {
+  color: var(--text-muted);
+}
+
+.pad.loaded .time-elapsed {
+  color: var(--text-secondary);
+}
+
+.pad.playing .time-elapsed {
+  color: var(--accent-color, var(--color-cyan));
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+.time-divider {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.time-remaining {
+  color: var(--text-muted);
+}
+
+.pad.loaded .time-remaining {
+  color: var(--text-primary);
+}
+
+.pad.playing .time-remaining {
+  color: #ff3366; /* Beautiful warning rose-red countdown color */
+  text-shadow: 0 0 8px rgba(255, 51, 102, 0.35);
+}
+
+.pad-footer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Sub-indicators on pad */
+.pad-indicators {
+  display: flex;
+  gap: 8px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  width: 100%;
+}
+
+.pad-indicators span.active {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.volume-indicator {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pad.loaded .volume-indicator {
+  color: var(--accent-color);
+}
+
+/* Pad progress bar */
+.pad-progress-bar {
+  width: 100%;
+  height: calc(24px * var(--pad-scale, 1.0)); /* 8px から 24px に拡張（音声波形キャンバス用） */
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pad-waveform-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.pad-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-color, var(--color-cyan));
+  border-radius: 4px;
+  transition: width 0.1s linear;
+}
+
+/* Drag and Drop Hover Hint on Pad */
+.pad.drag-over {
+  border-color: var(--color-emerald) !important;
+  background: rgba(0, 245, 212, 0.1) !important;
+  box-shadow: 0 0 15px var(--color-emerald-glow) !important;
+  transform: scale(1.02);
+}
+
+/* Right Section: Configuration and Master controls */
+.control-sidebar {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: margin-right 0.3s ease, opacity 0.3s ease, width 0.3s ease;
+}
+
+.control-sidebar.closed {
+  width: 0;
+  margin-right: -340px; /* 320px + gap 20px */
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sidebar-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Master Controls Panel */
+.master-panel {
+  gap: 16px;
+}
+
+.panel-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  border-left: 3px solid var(--color-cyan);
+  padding-left: 8px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.control-value {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-cyan);
+}
+
+/* Custom Sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+  transition: all 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--color-cyan);
+  transform: scale(1.15);
+}
+
+/* Master Volume specific */
+.master-volume-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.volume-icon {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  height: 42px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--glow-transition);
+}
+
+.btn-panic {
+  background: linear-gradient(135deg, #e63946 0%, var(--color-rose) 100%);
+  color: #ffffff;
+  box-shadow: 0 0 8px var(--color-rose-glow);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  height: 28px;
+  font-size: 0.8rem;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: var(--glow-transition);
+  -webkit-app-region: no-drag;
+}
+
+.btn-panic:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 15px var(--color-rose-glow);
+}
+
+.btn-panic:active {
+  transform: scale(0.98);
+}
+
+/* Selected Pad Settings Panel */
+.pad-settings-panel {
+  flex: 1;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.no-pad-selected-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-muted);
+  gap: 12px;
+  font-size: 0.85rem;
+  padding: 20px 0;
+}
+
+.no-pad-selected-message svg {
+  font-size: 2.5rem;
+  stroke: var(--text-muted);
+  opacity: 0.3;
+}
+
+.settings-scroll-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Specific Settings inputs */
+.settings-input-row {
+  display: flex;
+  gap: 12px;
+}
+
+.settings-input-row .control-group {
+  flex: 1;
+}
+
+input[type="number"], select, input[type="text"] {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  height: 36px;
+  padding: 0 10px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="number"]:focus, select:focus, input[type="text"]:focus {
+  border-color: var(--color-cyan);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Mode select dropdown */
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 32px;
+}
+
+/* File Import Buttons */
+.file-import-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-btn-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.import-btn-wrapper input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-danger {
+  background: rgba(230, 57, 70, 0.1);
+  border: 1px solid rgba(230, 57, 70, 0.2);
+  color: #ff4d6d;
+}
+
+.btn-danger:hover {
+  background: rgba(230, 57, 70, 0.2);
+  border-color: rgba(230, 57, 70, 0.4);
+}
+
+/* Key Recorder */
+.key-recorder-btn {
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+}
+
+.key-recorder-btn.recording {
+  border-color: var(--color-yellow);
+  color: var(--color-yellow);
+  box-shadow: 0 0 10px var(--color-yellow-glow);
+  animation: pulse-border 1.5s infinite alternate;
+}
+
+@keyframes pulse-border {
+  0% { border-color: rgba(255, 238, 50, 0.3); }
+  100% { border-color: rgba(255, 238, 50, 1); }
+}
+
+/* Color theme selector */
+.color-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+  max-width: 160px;
+  justify-items: center;
+  flex: 1;
+}
+
+.color-option, .color-option-custom {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.color-option:hover, .color-option-custom:hover {
+  transform: scale(1.2);
+}
+
+.color-option.selected, .color-option-custom.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.color-option.cyan { background-color: var(--color-cyan); }
+.color-option.rose { background-color: var(--color-rose); }
+.color-option.purple { background-color: var(--color-purple); }
+.color-option.emerald { background-color: var(--color-emerald); }
+.color-option.yellow { background-color: var(--color-yellow); }
+.color-option.orange { background-color: var(--color-orange); }
+.color-option.red { background-color: var(--color-red); }
+.color-option.blue { background-color: var(--color-blue); }
+.color-option.green { background-color: var(--color-green); }
+.color-option.pink { background-color: var(--color-pink); }
+.color-option.slate { background-color: var(--color-slate); }
+
+.color-option-custom {
+  background: linear-gradient(135deg, red, yellow, lime, blue, magenta);
+}
+
+/* Switch Toggle Row */
+.switch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.switch-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Toggle Switch Styling */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 22px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.08);
+  transition: .3s;
+  border-radius: 22px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--color-cyan);
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+/* Footer Section */
+footer {
+  height: 24px;
+  background: rgba(8, 9, 13, 0.8);
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.footer-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-emerald);
+  box-shadow: 0 0 6px var(--color-emerald-glow);
+}
+
+/* Audio Visualizer container at top control area */
+.visualizer-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  width: 80px;
+  pointer-events: none;
+}
+
+.vis-bar {
+  flex: 1;
+  background: var(--color-cyan);
+  border-radius: 1px;
+  height: 2px;
+  transform-origin: bottom;
+  transition: transform 0.05s ease;
+}
+
+/* Help Button inside header */
+.help-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--glow-transition);
+  outline: none;
+  margin-left: -4px;
+}
+.help-btn:hover {
+  background: var(--color-cyan-glow);
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+  box-shadow: 0 0 8px var(--color-cyan-glow);
+}
+
+/* Help Modal Dialog */
+.help-modal {
+  border: none;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: none; /* JSで開くときのみ flex で制御 */
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  z-index: 1000;
+}
+.help-modal[open] {
+  display: flex;
+}
+.help-modal::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+.help-modal-content {
+  background: rgba(18, 22, 33, 0.85);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: var(--glass-blur);
+  position: relative;
+  animation: modal-fade-in 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.help-modal-content h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 8px;
+}
+.close-help-btn {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.close-help-btn:hover {
+  color: var(--color-rose);
+}
+.help-format-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.format-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+.format-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 65px;
+  text-align: center;
+}
+.format-badge.wav { background: rgba(0, 242, 254, 0.1); color: var(--color-cyan); border: 1px solid rgba(0, 242, 254, 0.2); }
+.format-badge.mp3 { background: rgba(157, 78, 221, 0.1); color: var(--color-purple); border: 1px solid rgba(157, 78, 221, 0.2); }
+.format-badge.m4a { background: rgba(255, 0, 127, 0.1); color: var(--color-rose); border: 1px solid rgba(255, 0, 127, 0.2); }
+.format-badge.generic { background: rgba(0, 245, 212, 0.1); color: var(--color-emerald); border: 1px solid rgba(0, 245, 212, 0.2); }
+.format-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.help-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 12px;
+}
+
+/* Pad comment line */
+.pad-comment {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: auto-phrase;
+  line-break: loose;
+  overflow-wrap: anywhere;
+  margin-top: 4px;
+  transition: color 0.2s;
+  font-weight: 400;
+}
+.pad.loaded .pad-comment {
+  color: var(--text-secondary);
+}
+.pad.playing .pad-comment {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Page Selector Tabs */
+.page-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.btn-page {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--glow-transition);
+}
+.btn-page:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+.btn-page.active {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+}
+
+/* MacBook 13インチ (1280x800) および小画面・低解像度環境向け最適化 */
+
+
+/* ==========================================================================
+   老眼・ユニバーサルデザイン ＆ デバイス自動最適化 (v1.2.0)
+   ========================================================================== */
+
+/* --------------------------------------------------------
+   標準定義 (MacBook 13-14インチ, 中画面環境用: 1024px 〜 1400px / 縦 680px 〜 850px)
+   -------------------------------------------------------- */
+:root {
+  --pad-title-size: 1.25rem; /* 曲名を大きく太く */
+  --pad-time-size: 1.15rem;  /* 時間表示を大きく */
+  --font-sans: -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif;
+}
+
+main {
+  min-height: 0 !important;
+  padding: 14px !important;
+  gap: 16px !important;
+}
+
+.grid-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: 1;
+}
+
+.pad-grid {
+  gap: 12px !important; /* ボタン同士の隙間を広げて誤操作防止 */
+}
+
+.pad {
+  padding: 10px 12px !important;
+  border-width: 2px !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.pad-body {
+  padding: 4px 0 !important;
+}
+
+.pad-title {
+  font-weight: 700 !important;
+  color: #ffffff !important; /* はっきり読める純白 */
+  margin-bottom: 4px;
+}
+
+.pad-comment {
+  font-weight: 700 !important;
+  color: var(--color-cyan) !important; /* コメントもシアンで目立たせる */
+  margin-top: 2px !important;
+}
+
+.pad-key {
+  font-size: 0.85rem !important;
+  padding: 2px 8px !important;
+  border-radius: 5px !important;
+  font-weight: 800 !important;
+}
+
+.pad-index {
+  font-size: 1.0rem !important;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pad-time-display {
+  padding: 4px 8px !important;
+  margin-top: 6px !important;
+  letter-spacing: 0.05em;
+}
+
+.volume-indicator {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+}
+
+.pad-indicators {
+  font-size: 0.9rem !important;
+  font-weight: 700 !important;
+}
+
+header {
+  height: 62px !important;
+  padding: 0 20px !important;
+}
+
+.app-title-container h1 {
+  font-size: 1.45rem !important;
+}
+
+.header-controls {
+  gap: 20px !important;
+}
+
+.btn-panic {
+  height: 34px !important;
+  font-size: 0.9rem !important;
+  padding: 0 16px !important;
+  border-radius: 6px !important;
+}
+
+/* 右側サイドバー (標準定義) */
+.control-sidebar {
+  width: 300px !important; /* 横幅比率調整でグリッドに広く配分 */
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important; /* ギャップを小さくして縦幅圧縮 */
+}
+
+.sidebar-panel {
+  flex: 1 !important;
+  height: calc(100% - 58px) !important;
+  max-height: calc(100% - 58px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px !important;
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+  border-radius: 16px;
+}
+
+.sidebar-tabs {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.sidebar-tabs .tab-btn {
+  flex: 1;
+  height: 46px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-tabs .tab-btn.active {
+  background: rgba(0, 242, 254, 0.18) !important;
+  border-color: var(--color-cyan) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+}
+
+.panel-title {
+  font-size: 1.2rem !important;
+  padding-left: 10px !important;
+  border-left-width: 4px !important;
+  margin-bottom: 12px !important;
+}
+
+.control-label {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px;
+}
+
+.control-value {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+}
+
+.switch-label {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+}
+
+.usage-hint {
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+/* フォーム要素拡大 (標準定義) */
+.control-group input[type="text"],
+.control-group input[type="number"],
+.control-group select {
+  height: 38px !important; /* 高さを46pxから38pxに縮小して縦幅圧縮 */
+  font-size: 1.05rem !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 6px !important;
+  font-weight: 700;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+input[type="range"] {
+  height: 12px !important;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+input[type="range"]::-webkit-slider-thumb {
+  width: 24px !important;
+  height: 24px !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8) !important;
+}
+
+.btn-secondary {
+  height: 38px !important;
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+.btn-danger {
+  height: 38px !important;
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+.page-selector {
+  gap: 12px !important;
+  margin-bottom: 8px !important;
+}
+.btn-page {
+  height: 38px !important;
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+.color-picker {
+  gap: 10px !important;
+}
+
+/* MacBook 13インチ (1280x800) および中画面・低解像度環境向け最適化 (標準定義の上書き) */
+@media (max-width: 1300px), (max-height: 820px) {
+  header {
+    height: 42px !important;
+    padding: 0 16px !important;
+  }
+  .app-instructions {
+    display: none !important;
+  }
+  body.is-electron .app-title-container {
+    margin-left: 60px !important;
+  }
+  main {
+    padding: 12px !important;
+    gap: 12px !important;
+    min-height: 0 !important;
+  }
+  .control-sidebar {
+    width: 270px !important;
+    gap: 12px !important;
+  }
+  .sidebar-panel {
+    padding: 12px !important;
+  }
+  .pad-grid {
+    gap: 8px !important;
+  }
+  .pad {
+    padding: 6px 8px !important;
+    border-radius: 8px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+  .pad-body {
+    padding: 2px 0 !important;
+  }
+  .pad-title {
+  }
+  .pad-comment {
+    margin-top: 1px !important;
+  }
+  .pad-time-display {
+    padding: 2px 6px !important;
+    margin-top: 4px !important;
+  }
+  .pad-key {
+    font-size: 0.75rem !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+  }
+  .pad-index {
+    font-size: 0.85rem !important;
+  }
+  .pad-indicators {
+    font-size: 0.75rem !important;
+  }
+  .btn {
+    height: 36px !important;
+    font-size: 0.8rem !important;
+  }
+  .btn-panic {
+    font-size: 0.8rem !important;
+  }
+}
+
+
+/* --------------------------------------------------------
+   A. 大画面モニター環境用 (横 1400px 以上 かつ 縦 850px 以上)
+   -------------------------------------------------------- */
+@media (min-width: 1400px) and (min-height: 850px) {
+  :root {
+    --pad-title-size: 1.45rem;
+    --pad-time-size: 1.3rem;
+  }
+
+  main {
+    min-height: 0 !important;
+    padding: 20px !important;
+    gap: 20px !important;
+  }
+
+  .pad-grid {
+    gap: 16px !important;
+  }
+
+  .pad {
+    padding: 16px 18px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+
+  .pad-body {
+    padding: 6px 0 !important;
+  }
+
+  .pad-comment {
+    margin-top: 4px !important;
+  }
+
+  .pad-key, .pad-index {
+    font-size: 0.95rem !important;
+  }
+
+  .pad-time-display {
+    padding: 6px 12px !important;
+    margin-top: 8px !important;
+  }
+
+  header {
+    height: 74px !important;
+    padding: 0 24px !important;
+  }
+
+  .app-title-container h1 {
+    font-size: 1.7rem !important;
+  }
+
+  .btn-panic {
+    height: 38px !important;
+    font-size: 1.0rem !important;
+  }
+
+  .control-sidebar {
+    width: 340px !important; /* 横幅比率調整 */
+    height: 100% !important;
+    max-height: 100% !important;
+    gap: 16px !important;
+  }
+
+  .sidebar-panel {
+    height: calc(100% - 66px) !important;
+    max-height: calc(100% - 66px) !important;
+    padding: 18px !important;
+  }
+
+  .sidebar-tabs .tab-btn {
+    height: 54px;
+    font-size: 1.25rem;
+  }
+
+  .panel-title {
+    font-size: 1.35rem !important;
+    margin-bottom: 14px !important;
+  }
+
+  .control-label, .control-value, .switch-label {
+    font-size: 1.2rem !important;
+  }
+
+  .control-group input[type="text"],
+  .control-group input[type="number"],
+  .control-group select {
+    height: 54px !important;
+    font-size: 1.3rem !important;
+  }
+
+  input[type="range"] {
+    height: 14px !important;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .btn-secondary, .btn-danger, .btn-page {
+    height: 52px !important;
+    font-size: 1.2rem !important;
+  }
+
+
+}
+
+
+/* --------------------------------------------------------
+   C. 小画面・タブレット環境用 (横 1024px 以下 または 縦 680px 以下)
+   -------------------------------------------------------- */
+@media (max-width: 1024px), (max-height: 680px) {
+  :root {
+    --pad-title-size: 1.1rem;
+    --pad-time-size: 0.95rem;
+  }
+
+  main {
+    min-height: 0 !important;
+    padding: 8px !important;
+    gap: 10px !important;
+  }
+
+  .pad-grid {
+    gap: 8px !important;
+  }
+
+  .pad {
+    padding: 4px 6px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    border-radius: 8px !important;
+  }
+
+  .pad-title {
+    margin-bottom: 2px;
+  }
+
+  .pad-comment {
+    margin-top: 4px !important;
+  }
+
+  .pad-key, .pad-index {
+    font-size: 0.75rem !important;
+  }
+
+  .pad-time-display {
+    padding: 1px 4px !important;
+    margin-top: 2px !important;
+  }
+  .pad-body {
+    padding: 1px 0 !important;
+  }
+  .pad-comment {
+    margin-top: 1px !important;
+  }
+
+  header {
+    height: 50px !important;
+    padding: 0 12px !important;
+  }
+
+  .app-title-container h1 {
+    font-size: 1.2rem !important;
+  }
+
+  .btn-panic {
+    height: 26px !important;
+    font-size: 0.75rem !important;
+    padding: 0 10px !important;
+  }
+
+  .control-sidebar {
+    width: 260px !important; /* 横幅比率調整 */
+    height: 100% !important;
+    max-height: 100% !important;
+    gap: 8px !important;
+  }
+
+  .sidebar-panel {
+    height: calc(100% - 48px) !important;
+    max-height: calc(100% - 48px) !important;
+    padding: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .sidebar-tabs .tab-btn {
+    height: 38px;
+    font-size: 0.95rem;
+    border-radius: 6px;
+  }
+
+  .panel-title {
+    font-size: 1.05rem !important;
+    margin-bottom: 8px !important;
+  }
+
+  .control-label, .control-value, .switch-label {
+    font-size: 0.95rem !important;
+  }
+
+  .control-group input[type="text"],
+  .control-group input[type="number"],
+  .control-group select {
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    border-radius: 6px !important;
+  }
+
+  input[type="range"] {
+    height: 8px !important;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .btn-secondary, .btn-danger, .btn-page {
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    border-radius: 6px !important;
+  }
+
+
+}
+
+/* ヘルプモーダルの老眼対応・特大デザイン */
+.help-modal-content {
+  max-width: 680px !important; /* 文字を大きくするため横幅を広く */
+  padding: 36px !important;
+  background: rgba(12, 16, 26, 0.98) !important; /* 高コントラスト背景 */
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.help-modal-content h2 {
+  font-size: 1.8rem !important; /* タイトルを巨大化 */
+  margin-bottom: 24px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 2px solid var(--color-cyan) !important;
+}
+
+.help-modal-content p {
+  font-size: 1.3rem !important; /* 説明文を大きく */
+  line-height: 1.6 !important;
+  margin-bottom: 20px !important;
+}
+
+.close-help-btn {
+  font-size: 3rem !important; /* 閉じるボタンを巨大化して押しやすく */
+  top: 24px !important;
+  right: 28px !important;
+}
+
+.help-format-list {
+  gap: 16px !important;
+  margin-bottom: 24px !important;
+}
+
+.format-item {
+  padding: 14px 20px !important; /* 項目を大きくタップしやすく */
+  gap: 20px !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.format-badge {
+  font-size: 1.15rem !important; /* バッジ内の文字を大きく */
+  padding: 6px 14px !important;
+  min-width: 110px !important;
+  border-radius: 6px !important;
+  font-weight: 800 !important;
+}
+
+.format-desc {
+  font-size: 1.25rem !important; /* バッジの説明文を大きく */
+  font-weight: 700 !important;
+  color: #ffffff !important; /* 高コントラスト化 */
+}
+
+.help-note {
+  font-size: 1.15rem !important; /* 注意書きを大きく */
+  font-weight: 700 !important;
+  color: var(--text-secondary) !important;
+  line-height: 1.6 !important;
+  border-top: 1.5px dashed rgba(255, 255, 255, 0.1) !important;
+  padding-top: 16px !important;
+}
+
+/* 時間表示改行による再生中のレイアウト崩れ防止 */
+.pad-time-display {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+}
+
+.pad-time-display span {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+/* ==========================================================================
+   設定パネルの1行横並び（インライン）レイアウト ＆ スクロール非表示化 (v1.3.1)
+   ========================================================================== */
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.control-row-separator {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 6px 0;
+  width: 100%;
+}
+
+.slider-row-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.slider-row-container input[type="range"] {
+  flex: 1;
+  max-width: 150px;
+  height: 6px !important;
+}
+
+.slider-row-container input[type="range"]::-webkit-slider-thumb {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.grid-inputs-container input[type="number"] {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  color: var(--text-primary) !important;
+  font-weight: 700;
+  padding: 0 4px !important;
+}
+
+.control-sidebar .control-label {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.control-sidebar .control-value {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: var(--color-cyan);
+  min-width: 55px;
+  text-align: right;
+}
+
+.control-sidebar input[type="text"],
+.control-sidebar select {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+/* サイドバー全体およびパネルのスクロールを有効化 */
+.sidebar-panel {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Light Theme CSS */
+body.light-theme {
+  --bg-color: #f1f5f9;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #cbd5e1 0%, #f1f5f9 70%);
+  --panel-bg: rgba(255, 255, 255, 0.7);
+  --panel-border: rgba(0, 0, 0, 0.1);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme header {
+  background: rgba(241, 245, 249, 0.8) !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+}
+
+body.light-theme footer {
+  background: rgba(241, 245, 249, 0.8) !important;
+  border-top: 1px solid var(--panel-border) !important;
+}
+
+body.light-theme ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+body.light-theme ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+body.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+body.light-theme input[type="text"],
+body.light-theme input[type="number"],
+body.light-theme select {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-theme input[type="text"]:focus,
+body.light-theme input[type="number"]:focus,
+body.light-theme select:focus {
+  border-color: #0284c7 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+body.light-theme .btn-secondary {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-primary) !important;
+}
+body.light-theme .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme input[type="range"] {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .control-row {
+  border-bottom-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+body.light-theme dialog {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.12) !important;
+}
+
+body.light-theme .help-modal-content {
+  color: #0f172a !important;
+}
+
+body.light-theme .close-help-btn {
+  color: #64748b !important;
+}
+
+body.light-theme .format-desc {
+  color: #334155 !important;
+}
+
+body.light-theme .help-note {
+  color: #64748b !important;
+}
+
+body.light-theme .key-badge {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-theme .pad.empty {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+body.light-theme .pad.empty:hover {
+  border-color: rgba(0, 0, 0, 0.3) !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+body.light-theme .pad {
+  border-width: 5px !important;
+}
+
+body.light-theme .pad.loaded:not(.playing) {
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light-theme .pad.loaded:not(.playing):hover {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 12px var(--accent-glow) !important;
+}
+
+body.light-theme .pad.playing {
+  background: linear-gradient(var(--accent-glow), var(--accent-glow)), #ffffff !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 15px var(--accent-glow) !important;
+}
+
+body.light-theme .pad-key {
+  background: linear-gradient(to bottom, #ffffff, #e2e8f0) !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  border-bottom: 2px solid #94a3b8 !important;
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .pad.playing .pad-key {
+  transform: translateY(1px);
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .sidebar-tabs .tab-btn {
+  border: 2px solid rgba(0, 0, 0, 0.12) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+  color: var(--text-secondary) !important;
+}
+
+body.light-theme .sidebar-tabs .tab-btn.active {
+  background: rgba(2, 132, 199, 0.12) !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+  box-shadow: 0 0 10px rgba(2, 132, 199, 0.15) !important;
+}
+
+body.light-theme .control-value {
+  color: #0284c7 !important;
+}
+
+body.light-theme .inst-badge {
+  background: rgba(2, 132, 199, 0.1) !important;
+  color: #0284c7 !important;
+}
+
+body.light-theme input[type="range"]::-webkit-slider-thumb:hover {
+  background: #0284c7 !important;
+}
+
+body.light-theme .pad-title {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad-comment {
+  color: #475569 !important;
+}
+
+body.light-theme .pad.playing .pad-title {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad.playing .pad-comment {
+  color: #334155 !important;
+}
+
+body.light-theme .pad-time-display {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme .pad.playing .pad-time-display {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-theme .time-elapsed {
+  color: #334155 !important;
+}
+
+body.light-theme .pad.playing .time-elapsed {
+  color: #0284c7 !important;
+}
+
+body.light-theme .time-remaining {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad.playing .time-remaining {
+  color: #b91c1c !important;
+}
+
+body.light-theme .time-divider {
+  color: #64748b !important;
+}
+
+body.light-theme .pad-indicators {
+  color: #334155 !important;
+}
+
+body.light-theme .btn-page {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-secondary) !important;
+}
+
+body.light-theme .btn-page:hover {
+  background: rgba(0, 0, 0, 0.07) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-theme .btn-page.active {
+  background: rgba(2, 132, 199, 0.15) !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+  box-shadow: 0 0 10px rgba(2, 132, 199, 0.15) !important;
+}
+
+.page-edit-input {
+  color: #ffffff !important;
+}
+
+body.light-theme .page-edit-input {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad.selected {
+  border-width: 6px !important;
+  border-color: var(--accent-color) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 0 20px var(--accent-glow) !important;
+}
+
+body.light-theme .pad.empty {
+  border-width: 5px !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+
+body.light-theme .pad.empty:hover {
+  border-color: rgba(0, 0, 0, 0.4) !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+
+/* Pad Header Indicators */
+.mode-indicator {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--accent-color);
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+body.light-theme .mode-indicator {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--accent-color) !important;
+}
+
+.loop-indicator {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.15);
+  color: var(--color-cyan);
+  padding: 1px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+body.light-theme .loop-indicator {
+  background: rgba(2, 132, 199, 0.1) !important;
+  border-color: rgba(2, 132, 199, 0.15) !important;
+  color: #0284c7 !important;
+}
+
+.volume-indicator {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+body.light-theme .volume-indicator {
+  color: var(--accent-color) !important;
+}
+
+/* iPadでの入力フォームフォーカス制限解除 */
+input[type="text"], input[type="number"], select, textarea {
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+}
+
+/* 進行状況・ステータス表示（ヘッダー内） */
+.status-text {
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border: 2px solid rgba(74, 222, 128, 0.5);
+  border-radius: 8px;
+  padding: 5px 12px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  transition: opacity 0.5s, color 0.3s;
+  vertical-align: middle;
+  align-self: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+body.light-theme .status-text {
+  color: #4b5563 !important;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+/* Pad container height based adaptive layout (prevent overlapping between comment and time display) */
+@container (max-height: 85px) {
+  .pad-comment {
+    font-size: min(var(--pad-comment-size, 0.7rem), 7.5cqw, 11cqh) !important;
+    margin-top: 2px !important;
+  }
+  .pad-time-display {
+    margin-top: 3px !important;
+    padding: 2px 6px !important;
+  }
+}
+
+@container (max-height: 70px) {
+  .pad-comment {
+    font-size: min(var(--pad-comment-size, 0.7rem), 7.5cqw, 9cqh) !important;
+    margin-top: 1px !important;
+    -webkit-line-clamp: 1 !important;
+  }
+  .pad-time-display {
+    margin-top: 2px !important;
+    padding: 1px 4px !important;
+  }
+}
+
+@container (max-height: 55px) {
+  .pad-comment {
+    display: none !important;
+  }
+  .pad-time-display {
+    margin-top: 1px !important;
+    padding: 1px 2px !important;
+  }
+}
+
+/* JSで付与された高さクラスに基づくレイアウト防衛（優先度最大） */
+.pad.pad-h-sm .pad-comment {
+  font-size: 0.65rem !important;
+  margin-top: 1px !important;
+}
+.pad.pad-h-sm .pad-time-display {
+  margin-top: 2px !important;
+  padding: 1px 4px !important;
+}
+
+.pad.pad-h-xs .pad-comment {
+  font-size: 0.55rem !important;
+  margin-top: 0px !important;
+  line-height: 1 !important;
+  -webkit-line-clamp: 1 !important;
+}
+.pad.pad-h-xs .pad-time-display {
+  margin-top: 1px !important;
+  padding: 1px 2px !important;
+}
+
+.pad.pad-h-xxs .pad-comment {
+  display: none !important; /* メモを完全に非表示にして、Time表示と絶対に重ならないようにする */
+}
+.pad.pad-h-xxs .pad-time-display {
+  margin-top: 1px !important;
+  padding: 1px 2px !important;
+}
+
+/* iPad版: キーボードアサイン機能は不要なため、パッド上のキー表示バッジも非表示 */
+.pad-key {
+  display: none !important;
+}
+
+/* 【改良版v2】曲は登録済みだが、まだ音声の準備(デコード)が終わっていない状態 */
+.pad.preparing {
+  position: relative;
+}
+.pad.preparing::after {
+  content: '準備中…';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 5;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffd257;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  animation: prepareBlink 1.2s ease-in-out infinite;
+}
+@keyframes prepareBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+
+  </style>
+</head>
+<body>
+
+
+  <!-- ヘッダーエリア -->
+  <header>
+    <div class="app-title-container">
+      <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
+      <span class="app-version" id="appVersion">2026-08-13 v33.1 メモリ版</span>
+      <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
+      <div class="app-instructions">
+        <span class="inst-item"><span class="inst-badge">メモリ方式</span>息継ぎなし</span>
+        <span class="inst-item"><span class="inst-badge">クリック</span>選択</span>
+        <span class="inst-item"><span class="inst-badge">ダブルクリック</span>再生/停止</span>
+      </div>
+    </div>
+    
+    <!-- 簡易周波数ビジュアル (完全センター配置) -->
+    <div class="visualizer-container" id="visualizer" style="position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none;">
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+    </div>
+    
+    <!-- PANICボタン (ビジュアルと絶対に重ならないよう中央から右にオフセット配置) -->
+    <button class="btn btn-panic" id="btnPanic" style="position: absolute; left: calc(50% + 60px); height: 38px; font-size: 0.9rem; font-weight: 700; min-width: 240px; padding: 0 32px; border-radius: 6px; box-shadow: 0 0 10px rgba(255, 77, 109, 0.2); white-space: nowrap; text-align: center; z-index: 10;">
+      🛑 PANIC (全停止)
+    </button>
+    
+    <div class="header-controls">
+      <button class="btn btn-secondary" id="btnHeaderSettings" style="height: 38px; font-weight: 700; white-space: nowrap;">
+        ⚙️ 設定
+      </button>
+    </div>
+  </header>
+
+  <!-- メインコンテンツレイアウト (グリッドと右側サイドバーの2分割) -->
+  <main>
+    <!-- 左側: パッドグリッド -->
+    <section class="grid-container">
+      <div class="page-selector-container">
+        <div class="page-selector" id="pageSelector">
+          <button class="btn-page active" data-bank="1">ページ 1</button>
+          <button class="btn-page" data-bank="2">ページ 2</button>
+          <button class="btn-page" data-bank="3">ページ 3</button>
+        </div>
+      </div>
+      <div class="pad-grid" id="padGrid">
+        <!-- JSで動的にパッドを生成します -->
+      </div>
+    </section>
+
+    <!-- 右側: コントロール＆設定サイドバー -->
+    <aside class="control-sidebar closed" id="controlSidebar">
+      <!-- サイドバーヘッダー（閉じるボタンなど） -->
+      <div class="sidebar-header" style="display: flex; justify-content: flex-end; align-items: center; padding: 0 4px; margin-bottom: -10px;">
+        <button class="btn-close-sidebar" id="btnCloseSidebar" style="background: none; border: none; color: var(--text-secondary); font-size: 1.4rem; cursor: pointer; padding: 4px 8px; transition: color 0.2s;" aria-label="閉じる">✕</button>
+      </div>
+
+      <!-- 設定切り替えタブ -->
+      <div class="sidebar-tabs" id="sidebarTabs">
+        <button class="tab-btn active" id="tabBtnMaster" data-target="masterSettingsPanel">📢 全体設定</button>
+        <button class="tab-btn" id="tabBtnPad" data-target="padSettingsPanel">✏️ パッド設定</button>
+      </div>
+
+      <!-- マスターコントロールパネル -->
+      <div class="sidebar-panel master-panel" id="masterSettingsPanel" style="display: none;">
+        <h2 class="panel-title">📢 全体設定</h2>
+        
+        <!-- マスターボリューム -->
+        <div class="control-row">
+          <span class="control-label">全体音量</span>
+          <div class="slider-row-container">
+            <span class="volume-icon" style="font-size: 0.95rem;">🔊</span>
+            <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.8">
+            <span class="control-value" id="masterVolumeVal">80%</span>
+          </div>
+        </div>
+
+        <!-- グリッドサイズ設定 (横並び) -->
+        <div class="control-row-separator"></div>
+        <div class="control-row">
+          <span class="control-label">グリッド数</span>
+          <div class="grid-inputs-container" style="display: flex; align-items: center; gap: 4px;">
+            <label for="gridRows" style="font-size: 0.95rem; font-weight: 700;">縦</label>
+            <input type="number" id="gridRows" min="1" max="3" value="3" style="width: 48px; height: 34px; font-size: 1.05rem; text-align: center;">
+            <label for="gridCols" style="font-size: 0.95rem; font-weight: 700; margin-left: 6px;">横</label>
+            <input type="number" id="gridCols" min="1" max="3" value="3" style="width: 48px; height: 34px; font-size: 1.05rem; text-align: center;">
+          </div>
+        </div>
+
+        <!-- 文字サイズ調整 (すべて横並び1行化) -->
+        <div class="control-row-separator"></div>
+        <div class="control-row">
+          <span class="control-label">曲名サイズ</span>
+          <div class="slider-row-container">
+            <input type="range" id="titleFontSize" min="9" max="34" step="0.5" value="22">
+            <span class="control-value" id="titleFontSizeVal">14pt</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">メモサイズ</span>
+          <div class="slider-row-container">
+            <input type="range" id="commentFontSize" min="8" max="28" step="0.5" value="15">
+            <span class="control-value" id="commentFontSizeVal">12pt</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">時間サイズ</span>
+          <div class="slider-row-container">
+            <input type="range" id="timeFontSize" min="9" max="30" step="0.5" value="17">
+            <span class="control-value" id="timeFontSizeVal">13pt</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">テーマ</span>
+          <div style="display: flex; gap: 6px; flex: 1; justify-content: flex-end;">
+            <select id="themeSelector" style="height: 34px; padding: 0 10px; font-size: 0.95rem; font-weight: 700; border-radius: 6px; font-family: var(--font-sans); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-primary);">
+              <option value="dark" style="background: #121621; color: #fff;">🌑 ダーク</option>
+              <option value="light" style="background: #fff; color: #000;">☀️ ライト</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- プリセット管理 -->
+        <div class="control-row-separator"></div>
+        <div class="control-row" style="margin-top: 2px;">
+          <span class="control-label">ファイル</span>
+          <div style="display: flex; gap: 6px; flex: 1; justify-content: flex-end;">
+            <button class="btn btn-secondary" id="btnExportPreset" style="height: 34px; padding: 0 10px; font-size: 0.9rem; font-weight: 700;">
+              📤 保存
+            </button>
+            <button class="btn btn-secondary" id="btnImportPreset" style="height: 34px; padding: 0 10px; font-size: 0.9rem; font-weight: 700;">
+              📥 復元
+            </button>
+            <button class="btn btn-danger" id="btnClearDB" style="height: 34px; padding: 0 10px; font-size: 0.9rem; font-weight: 700; margin-left: 6px;">
+              🗑️ クリア
+            </button>
+          </div>
+          <input type="file" id="presetFileInput" accept=".json" style="display: none;">
+        </div>
+      </div>
+
+      <!-- パッド詳細設定パネル (サイドバー内に常時表示) -->
+      <div class="sidebar-panel pad-settings-panel" id="padSettingsPanel" style="display: none; flex: 1; overflow-y: hidden;">
+        <h2 class="panel-title" id="selectedPadTitle">✏️ パッド設定</h2>
+        
+        <!-- 未選択時のメッセージ -->
+        <div class="no-pad-selected-message" id="noPadSelectedMsg">
+          <p style="font-size: 1.05rem; font-weight: 700; color: var(--text-secondary); text-align: center; margin-top: 20px;">編集するパッドを選択してください。</p>
+        </div>
+
+        <!-- パッド設定コンテンツ (1行横並びレイアウト) -->
+        <div class="settings-scroll-content" id="settingsContent" style="display: none; flex-direction: column; gap: 8px;">
+          <!-- 音声インポート -->
+          <div class="control-row">
+            <span class="control-label">音声ファイル</span>
+            <div class="import-btn-wrapper" style="flex: 1; display: flex; justify-content: flex-end;">
+              <button class="btn btn-secondary" id="btnSelectFile" style="height: 34px; padding: 0 10px; font-size: 0.95rem; font-weight: 700;">
+                📁 選択
+              </button>
+              <input type="file" id="audioFileInput" accept="audio/*, .mp3, .wav, .m4a, .aac, .mp4, .caf, .aif, .aiff">
+            </div>
+          </div>
+
+          <!-- パッド名編集 -->
+          <div class="control-row">
+            <span class="control-label">曲名</span>
+            <input type="text" id="padNameInput" placeholder="表示名" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px;">
+          </div>
+
+          <!-- パッドコメント編集 -->
+          <div class="control-row">
+            <span class="control-label">メモ</span>
+            <input type="text" id="padCommentInput" placeholder="例: BPM 120" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px;">
+          </div>
+
+          <!-- キー割り当て設定（iPad版では非表示：物理キーボードを使わないため） -->
+          <div class="control-row" style="display: none;">
+            <span class="control-label">キー割り当て</span>
+            <button class="btn key-recorder-btn" id="btnRecordKey" style="height: 34px; padding: 0 10px; font-size: 0.95rem; font-weight: 700; min-width: 100px;">変更</button>
+          </div>
+
+          <!-- 再生設定: 音量 -->
+          <div class="control-row">
+            <span class="control-label">音量</span>
+            <div class="slider-row-container">
+              <input type="range" id="padVolumeInput" min="0" max="1.5" step="0.05" value="1.0">
+              <span class="control-value" id="padVolumeVal">100%</span>
+            </div>
+          </div>
+
+          <!-- 再生設定: 再生開始位置 -->
+          <div class="control-row">
+            <span class="control-label">開始位置</span>
+            <div class="slider-row-container">
+              <input type="range" id="padStartOffsetInput" min="0" max="60" step="0.1" value="0.0">
+              <span class="control-value" id="padStartOffsetVal">0.0s</span>
+            </div>
+          </div>
+
+          <!-- 再生設定: フェードイン/アウト (それぞれ1行化) -->
+          <div class="control-row">
+            <span class="control-label">フェードイン</span>
+            <div class="slider-row-container">
+              <input type="range" id="padFadeInInput" min="0" max="5" step="0.1" value="0.0">
+              <span class="control-value" id="padFadeInVal">0.0s</span>
+            </div>
+          </div>
+          <div class="control-row">
+            <span class="control-label">フェードアウト</span>
+            <div class="slider-row-container">
+              <input type="range" id="padFadeOutInput" min="0" max="5" step="0.1" value="2.0">
+              <span class="control-value" id="padFadeOutVal">2.0s</span>
+            </div>
+          </div>
+
+          
+          <!-- ★v33.1: 左右定位は親分の指示で画面から外した（v32に無い設定） -->
+          <div class="control-row" style="display:none">
+            <span class="control-label">左右定位 (PANPOT)</span>
+            <div class="slider-row-container">
+              <input type="range" id="padPanInput" min="-1" max="1" step="0.1" value="0">
+              <span class="control-value" id="padPanVal">Center</span>
+            </div>
+          </div>
+
+          <!-- ★v33.1: ディレイは親分の指示で画面から外した（v32に無い設定） -->
+          <div class="control-row" style="display:none">
+            <span class="control-label">ディレイ</span>
+            <div class="slider-row-container">
+              <input type="range" id="padDelayInput" min="0" max="3" step="0.1" value="0.0">
+              <span class="control-value" id="padDelayVal">0.0s</span>
+            </div>
+          </div>
+
+          <!-- ★v33.1: 排他グループは親分の指示で画面から外した（v32に無い設定） -->
+          <div class="control-row" style="display:none">
+            <span class="control-label">排他グループ</span>
+            <select id="padSoloGroup" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px; border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-primary);">
+              <option value="none">無し</option>
+              <option value="A">Group A</option>
+              <option value="B">Group B</option>
+              <option value="C">Group C</option>
+            </select>
+          </div>
+<!-- 再生設定: トリガーモード -->
+          <div class="control-row">
+            <span class="control-label">再生モード</span>
+            <select id="padPlayMode" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px;">
+              <option value="overlap">Overlap (重ねる)</option>
+              <option value="solo">Solo (他を消す)</option>
+              <option value="retrigger">Retrigger (頭出し)</option>
+              <option value="crossfade" selected>CrossFade (クロス)</option>
+            </select>
+          </div>
+
+          <!-- トグル設定 (ループ) -->
+          <div class="control-row" style="padding: 2px 0;">
+            <span class="control-label">ループ再生</span>
+            <label class="switch" style="width: 44px; height: 22px;">
+              <input type="checkbox" id="padLoopToggle">
+              <span class="slider" style="border-radius: 22px;"></span>
+            </label>
+          </div>
+
+          <!-- カラーテーマ変更 -->
+          <div class="control-row">
+            <span class="control-label">ボタン色</span>
+            <div class="color-picker" id="colorPicker">
+              <div class="color-option red selected" data-color="red" title="レッド"></div>
+              <div class="color-option blue" data-color="blue" title="ブルー"></div>
+              <div class="color-option green" data-color="green" title="グリーン"></div>
+              <div class="color-option yellow" data-color="yellow" title="イエロー"></div>
+              <div class="color-option purple" data-color="purple" title="パープル"></div>
+              <div class="color-option orange" data-color="orange" title="オレンジ"></div>
+              <div class="color-option slate" data-color="slate" title="スレートグレー"></div>
+              <label class="color-option-custom" title="カスタム色">
+                <input type="color" id="customColorInput" style="display: none;">
+              </label>
+            </div>
+          </div>
+
+          <!-- パッドクリア -->
+          <button class="btn btn-danger" id="btnClearPad" style="height: 36px; font-size: 0.95rem; font-weight: 700; margin-top: 4px;">
+            🗑️ 設定を初期化（クリア）
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+
+
+  <!-- ヘルプダイアログ (取り込みファイル形式説明) -->
+  <dialog id="helpModal" class="help-modal">
+    <div class="help-modal-content">
+      <span class="close-help-btn" id="closeHelpBtn">&times;</span>
+      <h2>対応音声ファイル形式</h2>
+      <p>Pondashi は、ブラウザで動作する主要な音声フォーマットに対応しています。</p>
+      <div class="help-format-list">
+        <div class="format-item">
+          <span class="format-badge wav">WAV</span>
+          <span class="format-desc">非圧縮形式。最も低遅延で即時再生に適しています。</span>
+        </div>
+        <div class="format-item">
+          <span class="format-badge mp3">MP3</span>
+          <span class="format-desc">標準的な圧縮形式。ファイルサイズを節約できます。</span>
+        </div>
+        <div class="format-item">
+          <span class="format-badge m4a">M4A / AAC</span>
+          <span class="format-desc">高音質かつ高効率な圧縮形式（macOS / iOS環境で推奨）。</span>
+        </div>
+        <div class="format-item">
+          <span class="format-badge generic">FLAC / OGG</span>
+          <span class="format-desc">その他、各オーディオ形式に対応。</span>
+        </div>
+      </div>
+      <p class="help-note">※ サンプリングレートは 44.1kHz または 48kHz を推奨します。ビットレートは任意ですが、WAVファイルが最も再生パフォーマンスに優れています。</p>
+      
+      <!-- アプリアイコン保存セクション -->
+      <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 15px; display: flex; align-items: center; gap: 15px; text-align: left;">
+        <img src="./icon-192.png" style="width: 72px; height: 72px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); -webkit-touch-callout: default;" alt="アイコン">
+        <div style="flex: 1;">
+          <h4 style="margin: 0 0 4px 0; font-size: 1.05rem; color: var(--color-cyan);">iPadホーム画面用アイコン画像の保存</h4>
+          <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">左のアイコン画像を長押しして「写真に追加（保存）」してください。iPadのショートカットアプリ等でホーム画面に配置する際のアイコン画像として選択できます。</p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+
+  <!-- スクリプトの読み込み -->
+  
+
+  <script>
+
+    // Register Service Worker for Offline PWA
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                .catch(err => console.error('Service Worker registration failed:', err));
+        });
+    }
+
+    // --- Database (IndexedDB) Configuration ---
+    const DB_NAME = 'SaiseiMemDB';
+    const DB_VERSION = 1;
+    let db = null;
+
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onerror = (e) => reject('Database error: ' + e.target.errorCode);
+            request.onsuccess = (e) => {
+                db = e.target.result;
+                resolve(db);
+            };
+            request.onupgradeneeded = (e) => {
+                const dbInstance = e.target.result;
+                if (!dbInstance.objectStoreNames.contains('pads')) {
+                    dbInstance.createObjectStore('pads', { keyPath: 'id' });
+                }
+            };
+        });
+    }
+
+    function savePadToDB(padData) {
+        if (!db) return;
+        const transaction = db.transaction(['pads'], 'readwrite');
+        const store = transaction.objectStore('pads');
+        
+        const dataToSave = {
+            // ★v33.1 修復3: 鍵にページ番号を入れる。
+            //   v33までは鍵が「パッド番号」だけだったので、ページ2のパッド1を保存すると
+            //   ページ1のパッド1が上書きされて消えていた（実測で確認）。
+            id: padData.bankId + '-' + padData.id,
+            padId: padData.id,
+            bankId: padData.bankId,
+            fileName: padData.fileName,
+            fileBlob: padData.fileBlob,
+            volume: padData.volume,
+            pan: padData.pan,
+            playMode: padData.playMode,
+            fadeIn: padData.fadeIn,
+            fadeOut: padData.fadeOut,
+            delay: padData.delay,
+            startOffset: padData.startOffset,
+            soloGroup: padData.soloGroup || 'none',
+            loopEnabled: padData.loopEnabled,
+            customName: padData.customName,
+            comment: padData.comment,
+            theme: padData.theme
+        };
+        store.put(dataToSave);
+    }
+
+    function loadPadsFromDB(bankId) {
+        return new Promise((resolve) => {
+            if (!db) return resolve([]);
+            const transaction = db.transaction(['pads'], 'readonly');
+            const store = transaction.objectStore('pads');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                const allData = request.result;
+                resolve(allData.filter(item => item.bankId === bankId));
+            };
+            request.onerror = () => resolve([]);
+        });
+    }
+
+    function clearAllData() {
+        if (!db) return;
+        const transaction = db.transaction(['pads'], 'readwrite');
+        const store = transaction.objectStore('pads');
+        const request = store.clear();
+        request.onsuccess = () => {
+            window.location.reload();
+        };
+    }
+
+    // --- Audio Engine (Web Audio API) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.setValueAtTime(0.8, audioCtx.currentTime); // 初期値80%
+    masterGainNode.connect(audioCtx.destination);
+
+    // Global state
+    const pads = {};
+    const MAX_PADS = 256;
+    let currentBankId = 1;
+    let selectedPadIndex = null;
+    let isSidebarOpen = false;
+
+    function createDefaultPadState(id, bankId) {
+        return {
+            id: id,
+            bankId: bankId,
+            fileName: '',
+            fileBlob: null,
+            audioBuffer: null,
+            volume: 1.0,
+            pan: 0.0,
+            playMode: 'overlap', // 'overlap' | 'solo' | 'retrigger' | 'crossfade'
+            fadeIn: 0.0,
+            fadeOut: 2.0,
+            delay: 0.0,
+            startOffset: 0.0,
+            soloGroup: 'none',
+            loopEnabled: false,
+            customName: '',
+            comment: '',
+            theme: 'slate', // デフォルトカラー
+            
+            // 再生中のソース配列
+            activeSources: [],
+            status: 'idle', // 'idle' | 'ready' | 'playing'
+            isPaused: false,
+            startedAt: 0,
+            elapsed: 0
+        };
+    }
+
+    function getPadKey(index) {
+        const defaultKeys = [
+            'Q', 'W', 'E',
+            'A', 'S', 'D',
+            'Z', 'X', 'C'
+        ];
+        return defaultKeys[index] || '';
+    }
+
+    function applyDynamicFontSizes(titleSize, commentSize, timeSize) {
+        let styleEl = document.getElementById('dynamic-font-sizes');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'dynamic-font-sizes';
+            document.head.appendChild(styleEl);
+        }
+        styleEl.textContent = `
+            .pad-title {
+                font-size: ${titleSize}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${titleSize}pt, 9.5cqw, 20cqh) !important;
+            }
+            .pad-comment {
+                font-size: ${commentSize}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${commentSize}pt, 7.5cqw, 14cqh) !important;
+            }
+            .pad-time-display, 
+            .pad-time-display span {
+                font-size: ${timeSize}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${timeSize}pt, 8.5cqw, 18cqh) !important;
+            }
+            .pad.pad-h-sm .pad-comment {
+                font-size: ${commentSize * 0.75}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${commentSize * 0.75}pt, 6cqw) !important;
+                margin-top: 1px !important;
+            }
+            .pad.pad-h-sm .pad-time-display,
+            .pad.pad-h-sm .pad-time-display span {
+                font-size: ${timeSize * 0.85}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${timeSize * 0.85}pt, 7.5cqw) !important;
+                margin-top: 2px !important;
+                padding: 2px 4px !important;
+            }
+            .pad.pad-h-xs .pad-comment {
+                font-size: ${commentSize * 0.52}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${commentSize * 0.52}pt, 5cqw) !important;
+                margin-top: 0px !important;
+                line-height: 1 !important;
+                -webkit-line-clamp: 1 !important;
+            }
+            .pad.pad-h-xs .pad-time-display,
+            .pad.pad-h-xs .pad-time-display span {
+                font-size: ${timeSize * 0.7}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${timeSize * 0.7}pt, 6.5cqw) !important;
+                margin-top: 1px !important;
+                padding: 1px 2px !important;
+            }
+            .pad.pad-h-xxs .pad-comment {
+                display: none !important;
+            }
+            .pad.pad-h-xxs .pad-time-display,
+            .pad.pad-h-xxs .pad-time-display span {
+                font-size: ${timeSize * 0.6}pt !important; /* Safari15(iPad Air2)用の素の指定 */
+                font-size: min(${timeSize * 0.6}pt, 6cqw) !important;
+                margin-top: 1px !important;
+                padding: 1px 2px !important;
+            }
+        `;
+    }
+
+    function updatePadHeightClasses() {
+        const padsEl = document.querySelectorAll('.pad');
+        padsEl.forEach(padEl => {
+            const h = padEl.clientHeight;
+            padEl.classList.remove('pad-h-sm', 'pad-h-xs', 'pad-h-xxs');
+            if (h < 55) {
+                padEl.classList.add('pad-h-xxs');
+            } else if (h < 70) {
+                padEl.classList.add('pad-h-xs');
+            } else if (h < 85) {
+                padEl.classList.add('pad-h-sm');
+            }
+        });
+    }
+
+    // --- Audio Playback Logic (Web Audio API) ---
+    async function triggerPad(index) {
+        const pad = pads[index];
+        if (!pad || !pad.audioBuffer) return;
+
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+
+        pad.activeSources = pad.activeSources.filter(src => !src.ended);
+
+        if (pad.playMode === 'solo') {
+            Object.keys(pads).forEach(idx => {
+                const p = pads[idx];
+                if (p && p.id !== index && p.status === 'playing') {
+                    stopPad(p);
+                }
+            });
+        } else if (pad.playMode === 'retrigger') {
+            if (pad.activeSources.length > 0) {
+                stopPad(pad, 0);
+            }
+        } else if (pad.playMode === 'crossfade') {
+            pad.activeSources.forEach(srcInfo => {
+                if (!srcInfo.ended) {
+                    const now = audioCtx.currentTime;
+                    srcInfo.gainNode.gain.setValueAtTime(srcInfo.gainNode.gain.value, now);
+                    srcInfo.gainNode.gain.linearRampToValueAtTime(0, now + pad.fadeOut);
+                    srcInfo.source.stop(now + pad.fadeOut);
+                    srcInfo.ended = true;
+                }
+            });
+        }
+
+        if (pad.soloGroup && pad.soloGroup !== 'none') {
+            Object.keys(pads).forEach(idx => {
+                const p = pads[idx];
+                if (p && p.id !== index && p.soloGroup === pad.soloGroup && p.status === 'playing') {
+                    stopPad(p);
+                }
+            });
+        }
+
+        playBuffer(pad);
+    }
+
+    function playBuffer(pad, offset = 0) {
+        const source = audioCtx.createBufferSource();
+        source.buffer = pad.audioBuffer;
+        source.loop = pad.loopEnabled;
+
+        const gainNode = audioCtx.createGain();
+        const pannerNode = audioCtx.createStereoPanner ? audioCtx.createStereoPanner() : null;
+
+        let lastNode = source;
+        lastNode.connect(gainNode);
+        lastNode = gainNode;
+
+        if (pannerNode) {
+            pannerNode.pan.setValueAtTime(pad.pan, audioCtx.currentTime);
+            lastNode.connect(pannerNode);
+            lastNode = pannerNode;
+        }
+
+        lastNode.connect(masterGainNode);
+
+        const now = audioCtx.currentTime;
+        const delayTime = pad.delay || 0;
+        const startTime = now + delayTime;
+
+        const startPlayOffset = offset > 0 ? offset : (pad.startOffset || 0);
+
+        if (pad.fadeIn > 0 && offset === 0) {
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(pad.volume, startTime + pad.fadeIn);
+        } else {
+            gainNode.gain.setValueAtTime(pad.volume, startTime);
+        }
+
+        source.start(startTime, startPlayOffset);
+        pad.startedAt = audioCtx.currentTime - startPlayOffset + delayTime;
+        pad.isPaused = false;
+
+        const activeSrcInfo = {
+            source: source,
+            gainNode: gainNode,
+            pannerNode: pannerNode,
+            ended: false
+        };
+
+        source.onended = () => {
+            activeSrcInfo.ended = true;
+            if (pad.activeSources.every(src => src.ended)) {
+                if (!pad.isPaused) {
+                    setPadStatus(pad, 'ready');
+                    updatePadProgress(pad, 0);
+                    resetTimeDisplay(pad.id);
+                }
+            }
+        };
+
+        pad.activeSources.push(activeSrcInfo);
+        setPadStatus(pad, 'playing');
+
+        trackProgress(pad);
+    }
+
+    function stopPad(pad, customFadeOut = null) {
+        const now = audioCtx.currentTime;
+        const fadeOutDuration = customFadeOut !== null ? customFadeOut : pad.fadeOut;
+
+        if (fadeOutDuration > 0 && pad.activeSources.some(src => !src.ended)) {
+            pad.activeSources.forEach(srcInfo => {
+                if (srcInfo.ended) return;
+                try {
+                    srcInfo.gainNode.gain.setValueAtTime(srcInfo.gainNode.gain.value, now);
+                    srcInfo.gainNode.gain.linearRampToValueAtTime(0, now + fadeOutDuration);
+                    srcInfo.source.stop(now + fadeOutDuration);
+                } catch (e) {
+                    console.warn(e);
+                }
+            });
+
+            setTimeout(() => {
+                pad.activeSources = [];
+                setPadStatus(pad, 'ready');
+                updatePadProgress(pad, 0);
+                resetTimeDisplay(pad.id);
+            }, fadeOutDuration * 1000);
+        } else {
+            pad.activeSources.forEach(srcInfo => {
+                if (srcInfo.ended) return;
+                try {
+                    srcInfo.source.stop(now);
+                } catch (e) {
+                    console.warn(e);
+                }
+            });
+            pad.activeSources = [];
+            setPadStatus(pad, 'ready');
+            updatePadProgress(pad, 0);
+            resetTimeDisplay(pad.id);
+        }
+        pad.isPaused = false;
+    }
+
+    function panicAll() {
+        Object.keys(pads).forEach(idx => {
+            const pad = pads[idx];
+            if (pad && pad.status === 'playing') {
+                stopPad(pad, 0);
+            }
+        });
+    }
+
+    function setPadStatus(pad, status) {
+        pad.status = status;
+        updatePadUI(pad.id);
+    }
+
+    function updatePadProgress(pad, percent) {
+        const bar = document.getElementById(`padProgress-${pad.id}`);
+        if (bar) {
+            bar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+            bar.style.display = percent > 0 ? 'block' : 'none';
+        }
+    }
+
+    function formatTime(seconds) {
+        if (isNaN(seconds) || seconds === Infinity || seconds < 0) return '0:00:00';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function resetTimeDisplay(padId) {
+        const elapsedEl = document.getElementById(`padElapsed-${padId}`);
+        const remainingEl = document.getElementById(`padRemaining-${padId}`);
+        const pad = pads[padId];
+        if (elapsedEl) elapsedEl.innerText = '0:00:00';
+        if (remainingEl && pad && pad.audioBuffer) {
+            remainingEl.innerText = formatTime(pad.audioBuffer.duration);
+        } else if (remainingEl) {
+            remainingEl.innerText = '0:00:00';
+        }
+    }
+
+    function trackProgress(pad) {
+        if (pad.status !== 'playing' || pad.activeSources.length === 0) return;
+        
+        const duration = pad.audioBuffer.duration;
+        const elapsed = audioCtx.currentTime - pad.startedAt;
+        
+        const elapsedEl = document.getElementById(`padElapsed-${pad.id}`);
+        const remainingEl = document.getElementById(`padRemaining-${pad.id}`);
+
+        if (elapsed >= 0) {
+            let currentElapsed = elapsed;
+            if (pad.loopEnabled) {
+                currentElapsed = elapsed % duration;
+            }
+            const percent = (currentElapsed / duration) * 100;
+            updatePadProgress(pad, percent);
+            if (elapsedEl) elapsedEl.innerText = formatTime(currentElapsed);
+            if (remainingEl) remainingEl.innerText = formatTime(Math.max(0, duration - currentElapsed));
+        }
+
+        if (pad.status === 'playing') {
+            requestAnimationFrame(() => trackProgress(pad));
+        }
+    }
+
+    // --- UI Generation & Management ---
+
+    function buildGrid() {
+        const grid = document.getElementById('padGrid');
+        const rows = parseInt(document.getElementById('gridRows').value) || 3;
+        const cols = parseInt(document.getElementById('gridCols').value) || 3;
+        const totalPads = rows * cols;
+
+        document.documentElement.style.setProperty('--grid-rows', rows);
+        document.documentElement.style.setProperty('--grid-cols', cols);
+
+        grid.innerHTML = '';
+
+        for (let i = 1; i <= totalPads; i++) {
+            const padIdx = i;
+            
+            if (!pads[padIdx]) {
+                pads[padIdx] = createDefaultPadState(padIdx, currentBankId);
+            } else {
+                pads[padIdx].bankId = currentBankId;
+            }
+            const pad = pads[padIdx];
+
+            const padEl = document.createElement('div');
+            padEl.dataset.index = padIdx;
+            padEl.id = `pad-${padIdx}`;
+
+            padEl.innerHTML = `
+                <div class="pad-header">
+                  <span class="pad-key" id="padKey-${padIdx}">${getPadKey(padIdx - 1)}</span>
+                  <div class="pad-header-center-indicators">
+                    <span class="mode-indicator" id="indicatorMode-${padIdx}" style="display: none;"></span>
+                    <span class="loop-indicator" id="indicatorLoop-${padIdx}" style="display: none;">LOOP</span>
+                  </div>
+                  <span class="volume-indicator" id="indicatorVolume-${padIdx}"></span>
+                </div>
+                <div class="pad-body">
+                  <div class="pad-title" id="padTitle-${padIdx}">空のパッド</div>
+                  <div class="pad-comment" id="padComment-${padIdx}"></div>
+                  <div class="pad-time-display" id="padTimeDisplay-${padIdx}">
+                    <span class="time-elapsed" id="padElapsed-${padIdx}">0:00:00</span>
+                    <span class="time-divider" id="padTimeDivider-${padIdx}">/</span>
+                    <span class="time-remaining" id="padRemaining-${padIdx}">0:00:00</span>
+                  </div>
+                </div>
+                <div class="pad-footer">
+                  <div class="pad-progress-bar">
+                    <div class="pad-progress-fill" id="padProgress-${padIdx}" style="display: none;"></div>
+                  </div>
+                </div>
+            `;
+
+            padEl.addEventListener('click', (e) => {
+                selectPad(padIdx);
+            });
+
+            padEl.addEventListener('dblclick', () => {
+                selectPad(padIdx);
+                if (pad.status === 'idle') {
+                    document.getElementById('audioFileInput').click();
+                } else if (pad.status === 'playing') {
+                    stopPad(pad);
+                } else {
+                    triggerPad(padIdx);
+                }
+            });
+
+            grid.appendChild(padEl);
+            updatePadUI(padIdx);
+        }
+        updatePadHeightClasses();
+    }
+
+    function selectPad(index) {
+        const prevIndex = selectedPadIndex;
+        selectedPadIndex = index;
+
+        if (prevIndex !== null) updatePadUI(prevIndex);
+        updatePadUI(index);
+
+        const sidebar = document.getElementById('controlSidebar');
+        if (sidebar.classList.contains('closed')) {
+            sidebar.classList.remove('closed');
+            isSidebarOpen = true;
+        }
+
+        switchTab('padSettingsPanel');
+
+        const pad = pads[index];
+        if (!pad) return;
+
+        document.getElementById('noPadSelectedMsg').style.display = 'none';
+        document.getElementById('settingsContent').style.display = 'flex';
+
+        document.getElementById('selectedPadTitle').innerText = `✏️ PAD ${index} 設定`;
+        document.getElementById('padNameInput').value = pad.customName || '';
+        document.getElementById('padCommentInput').value = pad.comment || '';
+        
+        document.getElementById('padVolumeInput').value = pad.volume;
+        document.getElementById('padVolumeVal').innerText = `${Math.round(pad.volume * 100)}%`;
+
+        document.getElementById('padPanInput').value = pad.pan;
+        updatePanLabel(pad.pan);
+
+        document.getElementById('padStartOffsetInput').value = pad.startOffset;
+        document.getElementById('padStartOffsetVal').innerText = `${pad.startOffset.toFixed(1)}s`;
+
+        document.getElementById('padDelayInput').value = pad.delay;
+        document.getElementById('padDelayVal').innerText = `${pad.delay.toFixed(1)}s`;
+
+        document.getElementById('padFadeInInput').value = pad.fadeIn;
+        document.getElementById('padFadeInVal').innerText = `${pad.fadeIn.toFixed(1)}s`;
+
+        document.getElementById('padFadeOutInput').value = pad.fadeOut;
+        document.getElementById('padFadeOutVal').innerText = `${pad.fadeOut.toFixed(1)}s`;
+
+        document.getElementById('padPlayMode').value = pad.playMode;
+        document.getElementById('padLoopToggle').checked = pad.loopEnabled;
+        document.getElementById('padSoloGroup').value = pad.soloGroup || 'none';
+
+        const colorOptions = document.querySelectorAll('.color-option');
+        colorOptions.forEach(opt => {
+            if (opt.dataset.color === pad.theme) {
+                opt.classList.add('selected');
+            } else {
+                opt.classList.remove('selected');
+            }
+        });
+    }
+
+    function updatePanLabel(value) {
+        const valLabel = document.getElementById('padPanVal');
+        if (!valLabel) return;
+        if (value === 0) valLabel.innerText = 'Center';
+        else if (value < 0) valLabel.innerText = `L ${Math.abs(Math.round(value * 10))}`;
+        else valLabel.innerText = `R ${Math.round(value * 10)}`;
+    }
+
+    function updatePadUI(index) {
+        const pad = pads[index];
+        const padEl = document.getElementById(`pad-${index}`);
+        if (!padEl || !pad) return;
+
+        padEl.className = 'pad';
+        if (pad.status === 'idle') {
+            padEl.classList.add('empty');
+        } else {
+            padEl.classList.add('loaded');
+            if (pad.status === 'playing') padEl.classList.add('playing');
+        }
+
+        if (selectedPadIndex === index) {
+            padEl.classList.add('selected');
+        }
+
+        if (pad.theme) {
+            padEl.classList.add(`theme-${pad.theme}`);
+        }
+
+        const titleEl = document.getElementById(`padTitle-${index}`);
+        const commentEl = document.getElementById(`padComment-${index}`);
+        if (titleEl) {
+            titleEl.innerText = pad.customName || pad.fileName || '空のパッド';
+        }
+        if (commentEl) {
+            commentEl.innerText = pad.uiNote || pad.comment || '';
+        }
+
+        const modeEl = document.getElementById(`indicatorMode-${index}`);
+        const loopEl = document.getElementById(`indicatorLoop-${index}`);
+        const volEl = document.getElementById(`indicatorVolume-${index}`);
+
+        if (modeEl) {
+            if (pad.playMode && pad.playMode !== 'overlap') {
+                modeEl.innerText = pad.playMode.toUpperCase();
+                modeEl.style.display = 'inline-block';
+            } else {
+                modeEl.style.display = 'none';
+            }
+        }
+        if (loopEl) {
+            loopEl.style.display = pad.loopEnabled ? 'inline-block' : 'none';
+        }
+        if (volEl) {
+            if (pad.volume !== 1.0) {
+                volEl.innerText = `${Math.round(pad.volume * 100)}%`;
+            } else {
+                volEl.innerText = '';
+            }
+        }
+    }
+
+    function switchTab(panelId) {
+        const tabs = document.querySelectorAll('.tab-btn');
+        tabs.forEach(tab => {
+            if (tab.dataset.target === panelId) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+
+        const panels = ['masterSettingsPanel', 'padSettingsPanel'];
+        panels.forEach(pId => {
+            const panel = document.getElementById(pId);
+            if (pId === panelId) {
+                panel.style.display = 'flex';
+            } else {
+                panel.style.display = 'none';
+            }
+        });
+    }
+
+    async function loadAudioFile(file, padId) {
+        const pad = pads[padId];
+        if (!pad) return;
+
+        // v33: ここでは展開しない。ファイルを受け取って保存し、音の展開は行列にまかせる。
+        //      → 12曲続けて登録しても画面が止まらない。
+        pad.fileName = file.name;
+        pad.fileBlob = file;
+        pad.audioBuffer = null;
+        if (!pad.customName) pad.customName = file.name.replace(/\.[^/.]+$/, "");
+        pad.status = 'idle';
+        savePadToDB(pad);          // 先に保存する。展開に失敗しても曲は消えない
+        enqueueDecode(pad);
+        updatePadUI(padId);
+    }
+
+    // ===== v33 追加: 音の展開を「あとから・1曲ずつ・進みぐあいを見せながら」やる =====
+    let _decodeQueue = [];
+    let _decodeRunning = false;
+
+    // ★v33.1 修復1: 登録した曲を展開の行列に並べる。v33 ではこの関数が丸ごと抜けていて、
+    //   曲を登録した瞬間にJavaScriptが止まり、1曲も登録できなかった。
+    function enqueueDecode(pad) {
+        if (!pad || !pad.fileBlob) return;
+        pad.uiNote = '準備中…';
+        _decodeQueue.push(pad);
+        runDecodeQueue();
+    }
+
+    function showStatus(text, hideAfterMs) {
+        const el = document.getElementById('statusMessage');
+        if (!el) return;
+        if (!text) { el.style.display = 'none'; return; }
+        el.innerText = text;
+        el.style.display = 'inline-block';
+        if (hideAfterMs) setTimeout(() => { el.style.display = 'none'; }, hideAfterMs);
+    }
+
+    function mb(bytes) { return (bytes / 1048576).toFixed(1); }
+
+    async function runDecodeQueue() {
+        if (_decodeRunning) return;
+        _decodeRunning = true;
+        let done = 0;
+        let total = _decodeQueue.length;
+        while (_decodeQueue.length > 0) {
+            const pad = _decodeQueue.shift();
+            done++;
+            // ★v33.1 修復2: 総数を毎回数え直す。1曲ずつ足していくと「12 / 1 曲目」とずれていた
+            total = done + _decodeQueue.length;
+            showStatus(`\u97f3\u3092\u6e96\u5099\u4e2d\u2026 ${done} / ${total} \u66f2\u76ee`);
+            // 画面を一度描かせてから重い処理に入る（固まったように見せない）
+            await new Promise(r => setTimeout(r, 0));
+            try {
+                const arrayBuffer = await pad.fileBlob.arrayBuffer();
+                pad.audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                pad.status = 'ready';
+                pad.uiNote = null;
+            } catch (e) {
+                console.error('\u5c55\u958b\u306b\u5931\u6557:', e);
+                pad.status = 'idle';
+                pad.audioBuffer = null;
+                pad.uiNote = `\u2716 \u5c55\u958b\u3067\u304d\u305a (${mb(pad.fileBlob.size)}MB)`;
+            }
+            updatePadUI(pad.id);
+        }
+        _decodeRunning = false;
+        showStatus(total > 0 ? '\u6e96\u5099\u304c\u3067\u304d\u307e\u3057\u305f' : '', 2500);
+    }
+
+    async function switchBank(bankId) {
+        currentBankId = bankId;
+        panicAll();
+        _decodeQueue = [];
+
+        const savedPads = await loadPadsFromDB(currentBankId);
+        
+        for (let i = 1; i <= MAX_PADS; i++) {
+            pads[i] = createDefaultPadState(i, currentBankId);
+        }
+
+        for (const savedData of savedPads) {
+            // ★v33.1 修復3: 新しい鍵(ページ-番号)にも、古い鍵(番号だけ)にも対応する
+            const pad = pads[savedData.padId != null ? savedData.padId : savedData.id];
+            if (!pad) continue;
+            pad.volume = savedData.volume;
+            pad.pan = savedData.pan;
+            pad.playMode = savedData.playMode;
+            pad.fadeIn = savedData.fadeIn;
+            pad.fadeOut = savedData.fadeOut;
+            pad.delay = savedData.delay;
+            pad.startOffset = savedData.startOffset || 0.0;
+            pad.soloGroup = savedData.soloGroup || 'none';
+            pad.loopEnabled = savedData.loopEnabled;
+            pad.fileName = savedData.fileName;
+            pad.fileBlob = savedData.fileBlob;
+            pad.customName = savedData.customName;
+            pad.comment = savedData.comment;
+            pad.theme = savedData.theme || 'slate';
+
+            if (pad.fileBlob) {
+                pad.uiNote = '準備中…';
+                _decodeQueue.push(pad);
+            }
+        }
+
+        buildGrid();
+        
+        const sidebar = document.getElementById('controlSidebar');
+        sidebar.classList.add('closed');
+        isSidebarOpen = false;
+        selectedPadIndex = null;
+        document.getElementById('noPadSelectedMsg').style.display = 'block';
+        document.getElementById('settingsContent').style.display = 'none';
+
+        runDecodeQueue();   // v33: 画面を出したあとで展開を始める
+    }
+
+    async function exportPreset() {
+        if (!db) return;
+        const transaction = db.transaction(['pads'], 'readonly');
+        const store = transaction.objectStore('pads');
+        const request = store.getAll();
+        request.onsuccess = () => {
+            const allData = request.result;
+            const promises = allData.map(pad => {
+                return new Promise(resolve => {
+                    const padCopy = { ...pad };
+                    if (pad.fileBlob) {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            padCopy.fileBlobBase64 = reader.result;
+                            delete padCopy.fileBlob;
+                            resolve(padCopy);
+                        };
+                        reader.readAsDataURL(pad.fileBlob);
+                    } else {
+                        resolve(padCopy);
+                    }
+                });
+            });
+
+            Promise.all(promises).then(serializedPads => {
+                const jsonStr = JSON.stringify(serializedPads);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `さいせい君メモリ版_設定.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        };
+    }
+
+    function importPreset(file) {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const serializedPads = JSON.parse(e.target.result);
+                if (!db) return;
+                const transaction = db.transaction(['pads'], 'readwrite');
+                const store = transaction.objectStore('pads');
+                
+                store.clear();
+
+                for (const padData of serializedPads) {
+                    if (padData.fileBlobBase64) {
+                        const parts = padData.fileBlobBase64.split(';base64,');
+                        const contentType = parts[0].split(':')[1];
+                        const raw = window.atob(parts[1]);
+                        const rawLength = raw.length;
+                        const uInt8Array = new Uint8Array(rawLength);
+                        for (let i = 0; i < rawLength; ++i) {
+                            uInt8Array[i] = raw.charCodeAt(i);
+                        }
+                        padData.fileBlob = new Blob([uInt8Array], { type: contentType });
+                        delete padData.fileBlobBase64;
+                    }
+                    store.put(padData);
+                }
+
+                alert('プリセットの復元が完了しました。ページを再読み込みします。');
+                window.location.reload();
+            } catch (err) {
+                console.error(err);
+                alert('JSONファイルの読み込みに失敗しました。');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- DOM Initialization & Event Listeners ---
+
+    // v33: iOS は「人が触った瞬間」でないと音が始められない。最初の1回で解禁しておく。
+    (function () {
+        const unlock = () => {
+            if (audioCtx.state === 'suspended') { audioCtx.resume().catch(() => {}); }
+            window.removeEventListener('touchstart', unlock);
+            window.removeEventListener('mousedown', unlock);
+        };
+        window.addEventListener('touchstart', unlock, { passive: true });
+        window.addEventListener('mousedown', unlock);
+    })();
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await initDB();
+        await switchBank(1);
+
+        const savedTitleSize = localStorage.getItem('saisei_title_size') || '22';
+        const savedCommentSize = localStorage.getItem('saisei_comment_size') || '15';
+        const savedTimeSize = localStorage.getItem('saisei_time_size') || '17';
+        const savedTheme = localStorage.getItem('saisei_theme') || 'dark';
+
+        document.getElementById('titleFontSize').value = savedTitleSize;
+        document.getElementById('titleFontSizeVal').textContent = savedTitleSize + 'pt';
+        document.getElementById('commentFontSize').value = savedCommentSize;
+        document.getElementById('commentFontSizeVal').textContent = savedCommentSize + 'pt';
+        document.getElementById('timeFontSize').value = savedTimeSize;
+        document.getElementById('timeFontSizeVal').textContent = savedTimeSize + 'pt';
+        document.getElementById('themeSelector').value = savedTheme;
+
+        if (savedTheme === 'light') {
+            document.body.classList.add('light-theme');
+        }
+
+        applyDynamicFontSizes(parseFloat(savedTitleSize), parseFloat(savedCommentSize), parseFloat(savedTimeSize));
+
+        const sidebar = document.getElementById('controlSidebar');
+        document.getElementById('btnHeaderSettings').addEventListener('click', () => {
+            isSidebarOpen = !isSidebarOpen;
+            sidebar.classList.toggle('closed', !isSidebarOpen);
+            if (isSidebarOpen) {
+                switchTab('masterSettingsPanel');
+            }
+        });
+
+        document.getElementById('btnCloseSidebar').addEventListener('click', () => {
+            sidebar.classList.add('closed');
+            isSidebarOpen = false;
+        });
+
+        document.getElementById('tabBtnMaster').addEventListener('click', () => switchTab('masterSettingsPanel'));
+        document.getElementById('tabBtnPad').addEventListener('click', () => switchTab('padSettingsPanel'));
+
+        document.getElementById('masterVolume').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('masterVolumeVal').innerText = `${Math.round(val * 100)}%`;
+            masterGainNode.gain.setValueAtTime(val, audioCtx.currentTime);
+        });
+
+        document.getElementById('gridRows').addEventListener('change', buildGrid);
+        document.getElementById('gridCols').addEventListener('change', buildGrid);
+
+        document.getElementById('titleFontSize').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('titleFontSizeVal').textContent = val + 'pt';
+            applyDynamicFontSizes(val, parseFloat(document.getElementById('commentFontSize').value), parseFloat(document.getElementById('timeFontSize').value));
+            updatePadHeightClasses();
+            localStorage.setItem('saisei_title_size', val);
+        });
+        document.getElementById('commentFontSize').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('commentFontSizeVal').textContent = val + 'pt';
+            applyDynamicFontSizes(parseFloat(document.getElementById('titleFontSize').value), val, parseFloat(document.getElementById('timeFontSize').value));
+            updatePadHeightClasses();
+            localStorage.setItem('saisei_comment_size', val);
+        });
+        document.getElementById('timeFontSize').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('timeFontSizeVal').textContent = val + 'pt';
+            applyDynamicFontSizes(parseFloat(document.getElementById('titleFontSize').value), parseFloat(document.getElementById('commentFontSize').value), val);
+            updatePadHeightClasses();
+            localStorage.setItem('saisei_time_size', val);
+        });
+
+        document.getElementById('themeSelector').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'light') {
+                document.body.classList.add('light-theme');
+            } else {
+                document.body.classList.remove('light-theme');
+            }
+            localStorage.setItem('saisei_theme', val);
+        });
+
+        document.getElementById('btnExportPreset').addEventListener('click', exportPreset);
+        document.getElementById('btnImportPreset').addEventListener('click', () => {
+            document.getElementById('presetFileInput').click();
+        });
+        document.getElementById('presetFileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importPreset(e.target.files[0]);
+            }
+        });
+
+        document.getElementById('btnClearDB').addEventListener('click', () => {
+            if (confirm('すべての登録音声と設定データをリセットしますか？')) {
+                clearAllData();
+            }
+        });
+
+        document.getElementById('btnSelectFile').addEventListener('click', () => {
+            document.getElementById('audioFileInput').click();
+        });
+        document.getElementById('audioFileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0 && selectedPadIndex !== null) {
+                loadAudioFile(e.target.files[0], selectedPadIndex);
+            }
+        });
+
+        document.getElementById('padNameInput').addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].customName = val;
+                updatePadUI(selectedPadIndex);
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+        document.getElementById('padCommentInput').addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].comment = val;
+                updatePadUI(selectedPadIndex);
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+
+        document.getElementById('padVolumeInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('padVolumeVal').innerText = `${Math.round(val * 100)}%`;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].volume = val;
+                pads[selectedPadIndex].activeSources.forEach(src => {
+                    if (!src.ended) src.gainNode.gain.setValueAtTime(val, audioCtx.currentTime);
+                });
+                savePadToDB(pads[selectedPadIndex]);
+                updatePadUI(selectedPadIndex);
+            }
+        });
+
+        document.getElementById('padPanInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            updatePanLabel(val);
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].pan = val;
+                pads[selectedPadIndex].activeSources.forEach(src => {
+                    if (!src.ended && src.pannerNode) {
+                        src.pannerNode.pan.setValueAtTime(val, audioCtx.currentTime);
+                    }
+                });
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+
+        document.getElementById('padStartOffsetInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('padStartOffsetVal').innerText = `${val.toFixed(1)}s`;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].startOffset = val;
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+
+        document.getElementById('padDelayInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('padDelayVal').innerText = `${val.toFixed(1)}s`;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].delay = val;
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+
+        document.getElementById('padFadeInInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('padFadeInVal').innerText = `${val.toFixed(1)}s`;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].fadeIn = val;
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+        document.getElementById('padFadeOutInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('padFadeOutVal').innerText = `${val.toFixed(1)}s`;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].fadeOut = val;
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+
+        document.getElementById('padPlayMode').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].playMode = val;
+                savePadToDB(pads[selectedPadIndex]);
+                updatePadUI(selectedPadIndex);
+            }
+        });
+
+        document.getElementById('padLoopToggle').addEventListener('change', (e) => {
+            const val = e.target.checked;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].loopEnabled = val;
+                pads[selectedPadIndex].activeSources.forEach(src => {
+                    if (!src.ended) src.source.loop = val;
+                });
+                savePadToDB(pads[selectedPadIndex]);
+                updatePadUI(selectedPadIndex);
+            }
+        });
+
+        document.getElementById('padSoloGroup').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (selectedPadIndex !== null) {
+                pads[selectedPadIndex].soloGroup = val;
+                savePadToDB(pads[selectedPadIndex]);
+            }
+        });
+
+        const colorOptions = document.querySelectorAll('.color-option');
+        colorOptions.forEach(opt => {
+            opt.addEventListener('click', (e) => {
+                const color = e.target.dataset.color;
+                if (selectedPadIndex !== null) {
+                    pads[selectedPadIndex].theme = color;
+                    savePadToDB(pads[selectedPadIndex]);
+                    updatePadUI(selectedPadIndex);
+                    
+                    colorOptions.forEach(o => o.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                }
+            });
+        });
+
+        document.getElementById('btnClearPad').addEventListener('click', () => {
+            if (selectedPadIndex !== null && confirm(`PAD ${selectedPadIndex} の設定をクリアしますか？`)) {
+                const pad = pads[selectedPadIndex];
+                stopPad(pad, 0);
+                
+                const newPad = createDefaultPadState(selectedPadIndex, currentBankId);
+                pads[selectedPadIndex] = newPad;
+                
+                savePadToDB(newPad);
+                updatePadUI(selectedPadIndex);
+                selectPad(selectedPadIndex);
+            }
+        });
+
+        document.getElementById('btnPanic').addEventListener('click', panicAll);
+
+        const bankBtns = document.querySelectorAll('.btn-page');
+        bankBtns.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const btnTarget = e.currentTarget;
+                if (btnTarget.classList.contains('active')) return;
+
+                bankBtns.forEach(b => b.classList.remove('active'));
+                btnTarget.classList.add('active');
+
+                const newBankId = parseInt(btnTarget.dataset.bank, 10);
+                await switchBank(newBankId);
+            });
+        });
+
+        const keyMap = {
+            'q': 1, 'w': 2, 'e': 3,
+            'a': 4, 's': 5, 'd': 6,
+            'z': 7, 'x': 8, 'c': 9
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') {
+                return;
+            }
+            const padId = keyMap[e.key.toLowerCase()];
+            if (padId && pads[padId] && pads[padId].status !== 'idle' && !e.repeat) {
+                triggerPad(padId);
+            }
+        });
+
+        window.addEventListener('resize', updatePadHeightClasses);
+    });
+
+  </script>
+</body>
+</html>
