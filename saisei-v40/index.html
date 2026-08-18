@@ -1,0 +1,5207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>さいせい君 - デスクトップ・ポン出しシステム</title>
+  
+  <!-- PWA & iPad standalone configuration -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="./icon-512.png">
+  
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --pad-scale: 1.0;
+  /* Color Palette */
+  --bg-color: #08090d;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #151a24 0%, #08090d 70%);
+  --panel-bg: rgba(18, 22, 33, 0.45);
+  --panel-border: rgba(255, 255, 255, 0.06);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #4b5563;
+
+  /* Theme States */
+  --color-cyan: #00f2fe;
+  --color-cyan-glow: rgba(0, 242, 254, 0.35);
+  --color-rose: #ff007f;
+  --color-rose-glow: rgba(255, 0, 127, 0.35);
+  --color-purple: #9d4edd;
+  --color-purple-glow: rgba(157, 78, 221, 0.35);
+  --color-emerald: #00f5d4;
+  --color-emerald-glow: rgba(0, 245, 212, 0.35);
+  --color-yellow: #ffee32;
+  --color-yellow-glow: rgba(255, 238, 50, 0.35);
+  --color-orange: #ff9f1c;
+  --color-orange-glow: rgba(255, 159, 28, 0.35);
+  --color-red: #ff4d6d;
+  --color-red-glow: rgba(255, 77, 109, 0.35);
+  --color-blue: #00b4d8;
+  --color-blue-glow: rgba(0, 180, 216, 0.35);
+  --color-green: #70e000;
+  --color-green-glow: rgba(112, 224, 0, 0.35);
+  --color-pink: #ff70a6;
+  --color-pink-glow: rgba(255, 112, 166, 0.35);
+  --color-slate: #8e9aaf;
+  --color-slate-glow: rgba(142, 154, 175, 0.35);
+
+  /* Fonts */
+  --font-sans: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --pad-title-size: 0.85rem;
+  --pad-time-size: 0.85rem;
+
+  /* Shadows & Blur */
+  --glass-blur: blur(16px);
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --glow-transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  height: 100% !important;
+  height: 100svh !important;
+  margin: 0;
+  padding: 0;
+  overflow: hidden !important;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-color);
+  background-image: var(--bg-gradient);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Header Section (macOS Hidden titlebar support) */
+header {
+  position: relative;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(8, 9, 13, 0.6);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--panel-border);
+}
+body.is-electron header {
+  -webkit-app-region: drag; /* Allows window dragging in Electron */
+}
+
+/* Title adjustments to push text away from the left window buttons in macOS */
+.app-title-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 0;
+}
+body.is-electron .app-title-container {
+  margin-left: 80px; /* Spacer for traffic lights in Electron titleBarStyle hiddenInset */
+  -webkit-app-region: no-drag;
+}
+
+.app-title-container h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  background: linear-gradient(90deg, #ffffff, var(--color-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.app-version {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app-instructions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-app-region: no-drag;
+}
+
+.inst-item {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.inst-badge {
+  background: rgba(0, 242, 254, 0.12);
+  color: var(--color-cyan);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  -webkit-app-region: no-drag;
+}
+
+/* Main Container Layout */
+main {
+  flex: 1 !important;
+  min-height: 0 !important;
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  overflow: hidden !important;
+  box-sizing: border-box;
+  transition: gap 0.3s ease;
+}
+
+/* Left Section: Soundboard Grid */
+.grid-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+.pad-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--grid-rows, 4), minmax(0, 1fr));
+  gap: calc(12px * var(--pad-scale, 1.0));
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+.pad {
+  background: var(--panel-bg);
+  border: 4px solid var(--panel-border);
+  border-radius: 12px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(14px * var(--pad-scale, 1.0));
+  min-height: 0;
+  height: 100%;
+  cursor: pointer;
+  overflow: hidden;
+  container-type: size;
+  transition: var(--glow-transition);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+}
+
+.pad:hover {
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Selected Pad highlight */
+.pad.selected {
+  border-width: 5px !important;
+  border-color: var(--accent-color) !important;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 20px var(--accent-glow) !important;
+}
+
+/* Pad states */
+.pad.empty {
+  border-style: dashed;
+  border-width: 4px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.pad.empty .pad-header,
+.pad.empty .pad-body,
+.pad.empty .pad-footer {
+  visibility: hidden !important;
+}
+
+.pad.empty:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pad.loaded {
+  --accent-color: var(--color-cyan);
+  --accent-glow: var(--color-cyan-glow);
+  border-color: var(--accent-color);
+}
+
+.pad.theme-cyan {
+  --accent-color: var(--color-cyan);
+  --accent-glow: var(--color-cyan-glow);
+}
+.pad.theme-rose {
+  --accent-color: var(--color-rose);
+  --accent-glow: var(--color-rose-glow);
+}
+.pad.theme-purple {
+  --accent-color: var(--color-purple);
+  --accent-glow: var(--color-purple-glow);
+}
+.pad.theme-emerald {
+  --accent-color: var(--color-emerald);
+  --accent-glow: var(--color-emerald-glow);
+}
+.pad.theme-yellow {
+  --accent-color: var(--color-yellow);
+  --accent-glow: var(--color-yellow-glow);
+}
+.pad.theme-orange {
+  --accent-color: var(--color-orange);
+  --accent-glow: var(--color-orange-glow);
+}
+.pad.theme-red {
+  --accent-color: var(--color-red);
+  --accent-glow: var(--color-red-glow);
+}
+.pad.theme-blue {
+  --accent-color: var(--color-blue);
+  --accent-glow: var(--color-blue-glow);
+}
+.pad.theme-green {
+  --accent-color: var(--color-green);
+  --accent-glow: var(--color-green-glow);
+}
+.pad.theme-pink {
+  --accent-color: var(--color-pink);
+  --accent-glow: var(--color-pink-glow);
+}
+.pad.theme-slate {
+  --accent-color: var(--color-slate);
+  --accent-glow: var(--color-slate-glow);
+}
+
+.pad.loaded:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* Active playback state */
+.pad.playing {
+  animation: pulse-glow 2s infinite alternate;
+  background: var(--accent-glow);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.pad.paused {
+  border-color: var(--color-yellow);
+  box-shadow: 0 0 12px var(--color-yellow-glow);
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 8px var(--accent-glow), inset 0 0 4px var(--accent-glow);
+  }
+  100% {
+    box-shadow: 0 0 20px var(--accent-glow), inset 0 0 8px var(--accent-glow);
+  }
+}
+
+.pad.playing.fading-out {
+  animation: metronome-blink 0.5s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+  border-style: dashed;
+  opacity: calc(0.35 + 0.65 * var(--fade-progress, 1)) !important;
+}
+
+.pad.playing.fading-out .pad-time-display {
+  animation: metronome-text-blink 0.5s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.pad.playing.fading-out .pad-progress-fill {
+  animation: metronome-progress-blink 0.5s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes metronome-blink {
+  0% {
+    border-color: var(--accent-color);
+    background: var(--accent-glow);
+    box-shadow: 0 0 calc(20px * var(--fade-progress, 1)) var(--accent-glow) !important;
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(18, 22, 33, 0.45);
+    box-shadow: none !important;
+  }
+}
+
+@keyframes metronome-text-blink {
+  0% {
+    color: var(--color-rose) !important;
+    opacity: 1;
+  }
+  100% {
+    color: rgba(255, 255, 255, 0.3) !important;
+    opacity: 0.5;
+  }
+}
+
+@keyframes metronome-progress-blink {
+  0% {
+    background-color: var(--accent-color) !important;
+    box-shadow: 0 0 8px var(--accent-color) !important;
+  }
+  100% {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Pad Content Details */
+.pad-header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.pad-key {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: linear-gradient(to bottom, #2e3545, #1b1f2b);
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #141722;
+  border-bottom: 2px solid #0f1118;
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.4);
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pad-header-center-indicators {
+  position: absolute;
+  left: 45%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.volume-indicator .vol-label {
+  font-size: 0.55rem;
+  font-weight: normal;
+  opacity: 0.75;
+  margin-right: 2px;
+}
+
+.pad.playing .pad-key {
+  transform: translateY(1px);
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.2);
+}
+
+.pad-index {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.pad-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 10px 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.pad-title {
+  font-size: var(--pad-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.pad.empty .pad-title {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.pad-time-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--pad-time-size);
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  margin-top: 8px;
+  width: 100%;
+  transition: var(--glow-transition);
+}
+
+.pad.playing .pad-time-display {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.time-elapsed {
+  color: var(--text-muted);
+}
+
+.pad.loaded .time-elapsed {
+  color: var(--text-secondary);
+}
+
+.pad.playing .time-elapsed {
+  color: var(--accent-color, var(--color-cyan));
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+.time-divider {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.time-remaining {
+  color: var(--text-muted);
+}
+
+.pad.loaded .time-remaining {
+  color: var(--text-primary);
+}
+
+.pad.playing .time-remaining {
+  color: #ff3366; /* Beautiful warning rose-red countdown color */
+  text-shadow: 0 0 8px rgba(255, 51, 102, 0.35);
+}
+
+.pad-footer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Sub-indicators on pad */
+.pad-indicators {
+  display: flex;
+  gap: 8px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  width: 100%;
+}
+
+.pad-indicators span.active {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.volume-indicator {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pad.loaded .volume-indicator {
+  color: var(--accent-color);
+}
+
+/* Pad progress bar */
+.pad-progress-bar {
+  width: 100%;
+  height: calc(24px * var(--pad-scale, 1.0)); /* 8px から 24px に拡張（音声波形キャンバス用） */
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pad-waveform-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.pad-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-color, var(--color-cyan));
+  border-radius: 4px;
+  transition: width 0.1s linear;
+}
+
+/* Drag and Drop Hover Hint on Pad */
+.pad.drag-over {
+  border-color: var(--color-emerald) !important;
+  background: rgba(0, 245, 212, 0.1) !important;
+  box-shadow: 0 0 15px var(--color-emerald-glow) !important;
+  transform: scale(1.02);
+}
+
+/* Right Section: Configuration and Master controls */
+.control-sidebar {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: margin-right 0.3s ease, opacity 0.3s ease, width 0.3s ease;
+}
+
+.control-sidebar.closed {
+  width: 0;
+  margin-right: -340px; /* 320px + gap 20px */
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sidebar-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Master Controls Panel */
+.master-panel {
+  gap: 16px;
+}
+
+.panel-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  border-left: 3px solid var(--color-cyan);
+  padding-left: 8px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.control-value {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-cyan);
+}
+
+/* Custom Sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+  transition: all 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--color-cyan);
+  transform: scale(1.15);
+}
+
+/* Master Volume specific */
+.master-volume-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.volume-icon {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  height: 42px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--glow-transition);
+}
+
+.btn-panic {
+  background: linear-gradient(135deg, #e63946 0%, var(--color-rose) 100%);
+  color: #ffffff;
+  box-shadow: 0 0 8px var(--color-rose-glow);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  height: 28px;
+  font-size: 0.8rem;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: var(--glow-transition);
+  -webkit-app-region: no-drag;
+}
+
+.btn-panic:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 15px var(--color-rose-glow);
+}
+
+.btn-panic:active {
+  transform: scale(0.98);
+}
+
+/* Selected Pad Settings Panel */
+.pad-settings-panel {
+  flex: 1;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.no-pad-selected-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-muted);
+  gap: 12px;
+  font-size: 0.85rem;
+  padding: 20px 0;
+}
+
+.no-pad-selected-message svg {
+  font-size: 2.5rem;
+  stroke: var(--text-muted);
+  opacity: 0.3;
+}
+
+.settings-scroll-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Specific Settings inputs */
+.settings-input-row {
+  display: flex;
+  gap: 12px;
+}
+
+.settings-input-row .control-group {
+  flex: 1;
+}
+
+input[type="number"], select, input[type="text"] {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  height: 36px;
+  padding: 0 10px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="number"]:focus, select:focus, input[type="text"]:focus {
+  border-color: var(--color-cyan);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Mode select dropdown */
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 32px;
+}
+
+/* File Import Buttons */
+.file-import-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-btn-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.import-btn-wrapper input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-danger {
+  background: rgba(230, 57, 70, 0.1);
+  border: 1px solid rgba(230, 57, 70, 0.2);
+  color: #ff4d6d;
+}
+
+.btn-danger:hover {
+  background: rgba(230, 57, 70, 0.2);
+  border-color: rgba(230, 57, 70, 0.4);
+}
+
+/* Key Recorder */
+.key-recorder-btn {
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+}
+
+.key-recorder-btn.recording {
+  border-color: var(--color-yellow);
+  color: var(--color-yellow);
+  box-shadow: 0 0 10px var(--color-yellow-glow);
+  animation: pulse-border 1.5s infinite alternate;
+}
+
+@keyframes pulse-border {
+  0% { border-color: rgba(255, 238, 50, 0.3); }
+  100% { border-color: rgba(255, 238, 50, 1); }
+}
+
+/* Color theme selector */
+.color-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+  max-width: 160px;
+  justify-items: center;
+  flex: 1;
+}
+
+.color-option, .color-option-custom {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.color-option:hover, .color-option-custom:hover {
+  transform: scale(1.2);
+}
+
+.color-option.selected, .color-option-custom.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.color-option.cyan { background-color: var(--color-cyan); }
+.color-option.rose { background-color: var(--color-rose); }
+.color-option.purple { background-color: var(--color-purple); }
+.color-option.emerald { background-color: var(--color-emerald); }
+.color-option.yellow { background-color: var(--color-yellow); }
+.color-option.orange { background-color: var(--color-orange); }
+.color-option.red { background-color: var(--color-red); }
+.color-option.blue { background-color: var(--color-blue); }
+.color-option.green { background-color: var(--color-green); }
+.color-option.pink { background-color: var(--color-pink); }
+.color-option.slate { background-color: var(--color-slate); }
+
+.color-option-custom {
+  background: linear-gradient(135deg, red, yellow, lime, blue, magenta);
+}
+
+/* Switch Toggle Row */
+.switch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.switch-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Toggle Switch Styling */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 22px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.08);
+  transition: .3s;
+  border-radius: 22px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--color-cyan);
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+/* Footer Section */
+footer {
+  height: 24px;
+  background: rgba(8, 9, 13, 0.8);
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.footer-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-emerald);
+  box-shadow: 0 0 6px var(--color-emerald-glow);
+}
+
+/* Audio Visualizer container at top control area */
+.visualizer-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  width: 80px;
+  pointer-events: none;
+}
+
+.vis-bar {
+  flex: 1;
+  background: var(--color-cyan);
+  border-radius: 1px;
+  height: 2px;
+  transform-origin: bottom;
+  transition: transform 0.05s ease;
+}
+
+/* Help Button inside header */
+.help-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--glow-transition);
+  outline: none;
+  margin-left: -4px;
+}
+.help-btn:hover {
+  background: var(--color-cyan-glow);
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+  box-shadow: 0 0 8px var(--color-cyan-glow);
+}
+
+/* Help Modal Dialog */
+.help-modal {
+  border: none;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: none; /* JSで開くときのみ flex で制御 */
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  z-index: 1000;
+}
+.help-modal[open] {
+  display: flex;
+}
+.help-modal::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+.help-modal-content {
+  background: rgba(18, 22, 33, 0.85);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: var(--glass-blur);
+  position: relative;
+  animation: modal-fade-in 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.help-modal-content h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 8px;
+}
+.close-help-btn {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.close-help-btn:hover {
+  color: var(--color-rose);
+}
+.help-format-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.format-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+.format-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 65px;
+  text-align: center;
+}
+.format-badge.wav { background: rgba(0, 242, 254, 0.1); color: var(--color-cyan); border: 1px solid rgba(0, 242, 254, 0.2); }
+.format-badge.mp3 { background: rgba(157, 78, 221, 0.1); color: var(--color-purple); border: 1px solid rgba(157, 78, 221, 0.2); }
+.format-badge.m4a { background: rgba(255, 0, 127, 0.1); color: var(--color-rose); border: 1px solid rgba(255, 0, 127, 0.2); }
+.format-badge.generic { background: rgba(0, 245, 212, 0.1); color: var(--color-emerald); border: 1px solid rgba(0, 245, 212, 0.2); }
+.format-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.help-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 12px;
+}
+
+/* Pad comment line */
+.pad-comment {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: auto-phrase;
+  line-break: loose;
+  overflow-wrap: anywhere;
+  margin-top: 4px;
+  transition: color 0.2s;
+  font-weight: 400;
+}
+.pad.loaded .pad-comment {
+  color: var(--text-secondary);
+}
+.pad.playing .pad-comment {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Page Selector Tabs */
+.page-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.btn-page {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--glow-transition);
+}
+.btn-page:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+.btn-page.active {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+}
+
+/* MacBook 13インチ (1280x800) および小画面・低解像度環境向け最適化 */
+
+
+/* ==========================================================================
+   老眼・ユニバーサルデザイン ＆ デバイス自動最適化 (v1.2.0)
+   ========================================================================== */
+
+/* --------------------------------------------------------
+   標準定義 (MacBook 13-14インチ, 中画面環境用: 1024px 〜 1400px / 縦 680px 〜 850px)
+   -------------------------------------------------------- */
+:root {
+  --pad-title-size: 1.25rem; /* 曲名を大きく太く */
+  --pad-time-size: 1.15rem;  /* 時間表示を大きく */
+  --font-sans: 'Outfit', 'Noto Sans JP', sans-serif;
+}
+
+main {
+  min-height: 0 !important;
+  padding: 14px !important;
+  gap: 16px !important;
+}
+
+.grid-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: 1;
+}
+
+.pad-grid {
+  gap: 12px !important; /* ボタン同士の隙間を広げて誤操作防止 */
+}
+
+.pad {
+  padding: 10px 12px !important;
+  border-width: 2px !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.pad-body {
+  padding: 4px 0 !important;
+}
+
+.pad-title {
+  font-weight: 700 !important;
+  color: #ffffff !important; /* はっきり読める純白 */
+  margin-bottom: 4px;
+}
+
+.pad-comment {
+  font-weight: 700 !important;
+  color: var(--color-cyan) !important; /* コメントもシアンで目立たせる */
+  margin-top: 2px !important;
+}
+
+.pad-key {
+  font-size: 0.85rem !important;
+  padding: 2px 8px !important;
+  border-radius: 5px !important;
+  font-weight: 800 !important;
+}
+
+.pad-index {
+  font-size: 1.0rem !important;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pad-time-display {
+  padding: 4px 8px !important;
+  margin-top: 6px !important;
+  letter-spacing: 0.05em;
+}
+
+.volume-indicator {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+}
+
+.pad-indicators {
+  font-size: 0.9rem !important;
+  font-weight: 700 !important;
+}
+
+header {
+  height: 62px !important;
+  padding: 0 20px !important;
+}
+
+.app-title-container h1 {
+  font-size: 1.45rem !important;
+}
+
+.header-controls {
+  gap: 20px !important;
+}
+
+.btn-panic {
+  height: 34px !important;
+  font-size: 0.9rem !important;
+  padding: 0 16px !important;
+  border-radius: 6px !important;
+}
+
+/* 右側サイドバー (標準定義) */
+.control-sidebar {
+  width: 300px !important; /* 横幅比率調整でグリッドに広く配分 */
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important; /* ギャップを小さくして縦幅圧縮 */
+}
+
+.sidebar-panel {
+  flex: 1 !important;
+  height: calc(100% - 58px) !important;
+  max-height: calc(100% - 58px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px !important;
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+  border-radius: 16px;
+}
+
+.sidebar-tabs {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.sidebar-tabs .tab-btn {
+  flex: 1;
+  height: 46px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-tabs .tab-btn.active {
+  background: rgba(0, 242, 254, 0.18) !important;
+  border-color: var(--color-cyan) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+}
+
+.panel-title {
+  font-size: 1.2rem !important;
+  padding-left: 10px !important;
+  border-left-width: 4px !important;
+  margin-bottom: 12px !important;
+}
+
+.control-label {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px;
+}
+
+.control-value {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+}
+
+.switch-label {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+}
+
+.usage-hint {
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+/* フォーム要素拡大 (標準定義) */
+.control-group input[type="text"],
+.control-group input[type="number"],
+.control-group select {
+  height: 38px !important; /* 高さを46pxから38pxに縮小して縦幅圧縮 */
+  font-size: 1.05rem !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 6px !important;
+  font-weight: 700;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+input[type="range"] {
+  height: 12px !important;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+input[type="range"]::-webkit-slider-thumb {
+  width: 24px !important;
+  height: 24px !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8) !important;
+}
+
+.btn-secondary {
+  height: 38px !important;
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+.btn-danger {
+  height: 38px !important;
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+.page-selector {
+  gap: 12px !important;
+  margin-bottom: 8px !important;
+}
+.btn-page {
+  height: 38px !important;
+  font-size: 1.0rem !important;
+  font-weight: 700 !important;
+}
+
+.color-picker {
+  gap: 10px !important;
+}
+
+/* MacBook 13インチ (1280x800) および中画面・低解像度環境向け最適化 (標準定義の上書き) */
+@media (max-width: 1300px), (max-height: 820px) {
+  header {
+    height: 42px !important;
+    padding: 0 16px !important;
+  }
+  .app-instructions {
+    display: none !important;
+  }
+  body.is-electron .app-title-container {
+    margin-left: 60px !important;
+  }
+  main {
+    padding: 12px !important;
+    gap: 12px !important;
+    min-height: 0 !important;
+  }
+  .control-sidebar {
+    width: 270px !important;
+    gap: 12px !important;
+  }
+  .sidebar-panel {
+    padding: 12px !important;
+  }
+  .pad-grid {
+    gap: 8px !important;
+  }
+  .pad {
+    padding: 6px 8px !important;
+    border-radius: 8px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+  .pad-body {
+    padding: 2px 0 !important;
+  }
+  .pad-title {
+  }
+  .pad-comment {
+    margin-top: 1px !important;
+  }
+  .pad-time-display {
+    padding: 2px 6px !important;
+    margin-top: 4px !important;
+  }
+  .pad-key {
+    font-size: 0.75rem !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+  }
+  .pad-index {
+    font-size: 0.85rem !important;
+  }
+  .pad-indicators {
+    font-size: 0.75rem !important;
+  }
+  .btn {
+    height: 36px !important;
+    font-size: 0.8rem !important;
+  }
+  .btn-panic {
+    font-size: 0.8rem !important;
+  }
+}
+
+
+/* --------------------------------------------------------
+   A. 大画面モニター環境用 (横 1400px 以上 かつ 縦 850px 以上)
+   -------------------------------------------------------- */
+@media (min-width: 1400px) and (min-height: 850px) {
+  :root {
+    --pad-title-size: 1.45rem;
+    --pad-time-size: 1.3rem;
+  }
+
+  main {
+    min-height: 0 !important;
+    padding: 20px !important;
+    gap: 20px !important;
+  }
+
+  .pad-grid {
+    gap: 16px !important;
+  }
+
+  .pad {
+    padding: 16px 18px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+
+  .pad-body {
+    padding: 6px 0 !important;
+  }
+
+  .pad-comment {
+    margin-top: 4px !important;
+  }
+
+  .pad-key, .pad-index {
+    font-size: 0.95rem !important;
+  }
+
+  .pad-time-display {
+    padding: 6px 12px !important;
+    margin-top: 8px !important;
+  }
+
+  header {
+    height: 74px !important;
+    padding: 0 24px !important;
+  }
+
+  .app-title-container h1 {
+    font-size: 1.7rem !important;
+  }
+
+  .btn-panic {
+    height: 38px !important;
+    font-size: 1.0rem !important;
+  }
+
+  .control-sidebar {
+    width: 340px !important; /* 横幅比率調整 */
+    height: 100% !important;
+    max-height: 100% !important;
+    gap: 16px !important;
+  }
+
+  .sidebar-panel {
+    height: calc(100% - 66px) !important;
+    max-height: calc(100% - 66px) !important;
+    padding: 18px !important;
+  }
+
+  .sidebar-tabs .tab-btn {
+    height: 54px;
+    font-size: 1.25rem;
+  }
+
+  .panel-title {
+    font-size: 1.35rem !important;
+    margin-bottom: 14px !important;
+  }
+
+  .control-label, .control-value, .switch-label {
+    font-size: 1.2rem !important;
+  }
+
+  .control-group input[type="text"],
+  .control-group input[type="number"],
+  .control-group select {
+    height: 54px !important;
+    font-size: 1.3rem !important;
+  }
+
+  input[type="range"] {
+    height: 14px !important;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .btn-secondary, .btn-danger, .btn-page {
+    height: 52px !important;
+    font-size: 1.2rem !important;
+  }
+
+
+}
+
+
+/* --------------------------------------------------------
+   C. 小画面・タブレット環境用 (横 1024px 以下 または 縦 680px 以下)
+   -------------------------------------------------------- */
+@media (max-width: 1024px), (max-height: 680px) {
+  :root {
+    --pad-title-size: 1.1rem;
+    --pad-time-size: 0.95rem;
+  }
+
+  main {
+    min-height: 0 !important;
+    padding: 8px !important;
+    gap: 10px !important;
+  }
+
+  .pad-grid {
+    gap: 8px !important;
+  }
+
+  .pad {
+    padding: 4px 6px !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    border-radius: 8px !important;
+  }
+
+  .pad-title {
+    margin-bottom: 2px;
+  }
+
+  .pad-comment {
+    margin-top: 4px !important;
+  }
+
+  .pad-key, .pad-index {
+    font-size: 0.75rem !important;
+  }
+
+  .pad-time-display {
+    padding: 1px 4px !important;
+    margin-top: 2px !important;
+  }
+  .pad-body {
+    padding: 1px 0 !important;
+  }
+  .pad-comment {
+    margin-top: 1px !important;
+  }
+
+  header {
+    height: 50px !important;
+    padding: 0 12px !important;
+  }
+
+  .app-title-container h1 {
+    font-size: 1.2rem !important;
+  }
+
+  .btn-panic {
+    height: 26px !important;
+    font-size: 0.75rem !important;
+    padding: 0 10px !important;
+  }
+
+  .control-sidebar {
+    width: 260px !important; /* 横幅比率調整 */
+    height: 100% !important;
+    max-height: 100% !important;
+    gap: 8px !important;
+  }
+
+  .sidebar-panel {
+    height: calc(100% - 48px) !important;
+    max-height: calc(100% - 48px) !important;
+    padding: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .sidebar-tabs .tab-btn {
+    height: 38px;
+    font-size: 0.95rem;
+    border-radius: 6px;
+  }
+
+  .panel-title {
+    font-size: 1.05rem !important;
+    margin-bottom: 8px !important;
+  }
+
+  .control-label, .control-value, .switch-label {
+    font-size: 0.95rem !important;
+  }
+
+  .control-group input[type="text"],
+  .control-group input[type="number"],
+  .control-group select {
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    border-radius: 6px !important;
+  }
+
+  input[type="range"] {
+    height: 8px !important;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .btn-secondary, .btn-danger, .btn-page {
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    border-radius: 6px !important;
+  }
+
+
+}
+
+/* ヘルプモーダルの老眼対応・特大デザイン */
+.help-modal-content {
+  max-width: 680px !important; /* 文字を大きくするため横幅を広く */
+  padding: 36px !important;
+  background: rgba(12, 16, 26, 0.98) !important; /* 高コントラスト背景 */
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.help-modal-content h2 {
+  font-size: 1.8rem !important; /* タイトルを巨大化 */
+  margin-bottom: 24px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 2px solid var(--color-cyan) !important;
+}
+
+.help-modal-content p {
+  font-size: 1.3rem !important; /* 説明文を大きく */
+  line-height: 1.6 !important;
+  margin-bottom: 20px !important;
+}
+
+.close-help-btn {
+  font-size: 3rem !important; /* 閉じるボタンを巨大化して押しやすく */
+  top: 24px !important;
+  right: 28px !important;
+}
+
+.help-format-list {
+  gap: 16px !important;
+  margin-bottom: 24px !important;
+}
+
+.format-item {
+  padding: 14px 20px !important; /* 項目を大きくタップしやすく */
+  gap: 20px !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.format-badge {
+  font-size: 1.15rem !important; /* バッジ内の文字を大きく */
+  padding: 6px 14px !important;
+  min-width: 110px !important;
+  border-radius: 6px !important;
+  font-weight: 800 !important;
+}
+
+.format-desc {
+  font-size: 1.25rem !important; /* バッジの説明文を大きく */
+  font-weight: 700 !important;
+  color: #ffffff !important; /* 高コントラスト化 */
+}
+
+.help-note {
+  font-size: 1.15rem !important; /* 注意書きを大きく */
+  font-weight: 700 !important;
+  color: var(--text-secondary) !important;
+  line-height: 1.6 !important;
+  border-top: 1.5px dashed rgba(255, 255, 255, 0.1) !important;
+  padding-top: 16px !important;
+}
+
+/* 時間表示改行による再生中のレイアウト崩れ防止 */
+.pad-time-display {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+}
+
+.pad-time-display span {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+/* ==========================================================================
+   設定パネルの1行横並び（インライン）レイアウト ＆ スクロール非表示化 (v1.3.1)
+   ========================================================================== */
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.control-row-separator {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 6px 0;
+  width: 100%;
+}
+
+.slider-row-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.slider-row-container input[type="range"] {
+  flex: 1;
+  max-width: 150px;
+  height: 6px !important;
+}
+
+.slider-row-container input[type="range"]::-webkit-slider-thumb {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.grid-inputs-container input[type="number"] {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  color: var(--text-primary) !important;
+  font-weight: 700;
+  padding: 0 4px !important;
+}
+
+.control-sidebar .control-label {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.control-sidebar .control-value {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: var(--color-cyan);
+  min-width: 55px;
+  text-align: right;
+}
+
+.control-sidebar input[type="text"],
+.control-sidebar select {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+/* サイドバー全体およびパネルのスクロールを有効化 */
+.sidebar-panel {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Light Theme CSS */
+body.light-theme {
+  --bg-color: #f1f5f9;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #cbd5e1 0%, #f1f5f9 70%);
+  --panel-bg: rgba(255, 255, 255, 0.7);
+  --panel-border: rgba(0, 0, 0, 0.1);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme header {
+  background: rgba(241, 245, 249, 0.8) !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+}
+
+body.light-theme footer {
+  background: rgba(241, 245, 249, 0.8) !important;
+  border-top: 1px solid var(--panel-border) !important;
+}
+
+body.light-theme ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+body.light-theme ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+body.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+body.light-theme input[type="text"],
+body.light-theme input[type="number"],
+body.light-theme select {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-theme input[type="text"]:focus,
+body.light-theme input[type="number"]:focus,
+body.light-theme select:focus {
+  border-color: #0284c7 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+body.light-theme .btn-secondary {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-primary) !important;
+}
+body.light-theme .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme input[type="range"] {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .control-row {
+  border-bottom-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+body.light-theme dialog {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.12) !important;
+}
+
+body.light-theme .help-modal-content {
+  color: #0f172a !important;
+}
+
+body.light-theme .close-help-btn {
+  color: #64748b !important;
+}
+
+body.light-theme .format-desc {
+  color: #334155 !important;
+}
+
+body.light-theme .help-note {
+  color: #64748b !important;
+}
+
+body.light-theme .key-badge {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-theme .pad.empty {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+body.light-theme .pad.empty:hover {
+  border-color: rgba(0, 0, 0, 0.3) !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+body.light-theme .pad {
+  border-width: 5px !important;
+}
+
+body.light-theme .pad.loaded:not(.playing) {
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light-theme .pad.loaded:not(.playing):hover {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 12px var(--accent-glow) !important;
+}
+
+body.light-theme .pad.playing {
+  background: linear-gradient(var(--accent-glow), var(--accent-glow)), #ffffff !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 15px var(--accent-glow) !important;
+}
+
+body.light-theme .pad-key {
+  background: linear-gradient(to bottom, #ffffff, #e2e8f0) !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  border-bottom: 2px solid #94a3b8 !important;
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .pad.playing .pad-key {
+  transform: translateY(1px);
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .sidebar-tabs .tab-btn {
+  border: 2px solid rgba(0, 0, 0, 0.12) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+  color: var(--text-secondary) !important;
+}
+
+body.light-theme .sidebar-tabs .tab-btn.active {
+  background: rgba(2, 132, 199, 0.12) !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+  box-shadow: 0 0 10px rgba(2, 132, 199, 0.15) !important;
+}
+
+body.light-theme .control-value {
+  color: #0284c7 !important;
+}
+
+body.light-theme .inst-badge {
+  background: rgba(2, 132, 199, 0.1) !important;
+  color: #0284c7 !important;
+}
+
+body.light-theme input[type="range"]::-webkit-slider-thumb:hover {
+  background: #0284c7 !important;
+}
+
+body.light-theme .pad-title {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad-comment {
+  color: #475569 !important;
+}
+
+body.light-theme .pad.playing .pad-title {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad.playing .pad-comment {
+  color: #334155 !important;
+}
+
+body.light-theme .pad-time-display {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme .pad.playing .pad-time-display {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+body.light-theme .time-elapsed {
+  color: #334155 !important;
+}
+
+body.light-theme .pad.playing .time-elapsed {
+  color: #0284c7 !important;
+}
+
+body.light-theme .time-remaining {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad.playing .time-remaining {
+  color: #b91c1c !important;
+}
+
+body.light-theme .time-divider {
+  color: #64748b !important;
+}
+
+body.light-theme .pad-indicators {
+  color: #334155 !important;
+}
+
+body.light-theme .btn-page {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-secondary) !important;
+}
+
+body.light-theme .btn-page:hover {
+  background: rgba(0, 0, 0, 0.07) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-theme .btn-page.active {
+  background: rgba(2, 132, 199, 0.15) !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+  box-shadow: 0 0 10px rgba(2, 132, 199, 0.15) !important;
+}
+
+.page-edit-input {
+  color: #ffffff !important;
+}
+
+body.light-theme .page-edit-input {
+  color: #0f172a !important;
+}
+
+body.light-theme .pad.selected {
+  border-width: 6px !important;
+  border-color: var(--accent-color) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 0 20px var(--accent-glow) !important;
+}
+
+body.light-theme .pad.empty {
+  border-width: 5px !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+
+body.light-theme .pad.empty:hover {
+  border-color: rgba(0, 0, 0, 0.4) !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+
+/* Pad Header Indicators */
+.mode-indicator {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--accent-color);
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+body.light-theme .mode-indicator {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--accent-color) !important;
+}
+
+.loop-indicator {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.15);
+  color: var(--color-cyan);
+  padding: 1px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+body.light-theme .loop-indicator {
+  background: rgba(2, 132, 199, 0.1) !important;
+  border-color: rgba(2, 132, 199, 0.15) !important;
+  color: #0284c7 !important;
+}
+
+.volume-indicator {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+body.light-theme .volume-indicator {
+  color: var(--accent-color) !important;
+}
+
+/* iPadでの入力フォームフォーカス制限解除 */
+input[type="text"], input[type="number"], select, textarea {
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+}
+
+/* 進行状況・ステータス表示（ヘッダー内） */
+.status-text {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  transition: opacity 0.5s, color 0.3s;
+  vertical-align: middle;
+  align-self: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+body.light-theme .status-text {
+  color: #4b5563 !important;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+/* Pad container height based adaptive layout (prevent overlapping between comment and time display) */
+@container (max-height: 85px) {
+  .pad-comment {
+    font-size: min(var(--pad-comment-size, 0.7rem), 7.5cqw, 11cqh) !important;
+    margin-top: 2px !important;
+  }
+  .pad-time-display {
+    margin-top: 3px !important;
+    padding: 2px 6px !important;
+  }
+}
+
+@container (max-height: 70px) {
+  .pad-comment {
+    font-size: min(var(--pad-comment-size, 0.7rem), 7.5cqw, 9cqh) !important;
+    margin-top: 1px !important;
+    -webkit-line-clamp: 1 !important;
+  }
+  .pad-time-display {
+    margin-top: 2px !important;
+    padding: 1px 4px !important;
+  }
+}
+
+@container (max-height: 55px) {
+  .pad-comment {
+    display: none !important;
+  }
+  .pad-time-display {
+    margin-top: 1px !important;
+    padding: 1px 2px !important;
+  }
+}
+
+/* JSで付与された高さクラスに基づくレイアウト防衛（優先度最大） */
+.pad.pad-h-sm .pad-comment {
+  font-size: 0.65rem !important;
+  margin-top: 1px !important;
+}
+.pad.pad-h-sm .pad-time-display {
+  margin-top: 2px !important;
+  padding: 1px 4px !important;
+}
+
+.pad.pad-h-xs .pad-comment {
+  font-size: 0.55rem !important;
+  margin-top: 0px !important;
+  line-height: 1 !important;
+  -webkit-line-clamp: 1 !important;
+}
+.pad.pad-h-xs .pad-time-display {
+  margin-top: 1px !important;
+  padding: 1px 2px !important;
+}
+
+.pad.pad-h-xxs .pad-comment {
+  display: none !important; /* メモを完全に非表示にして、Time表示と絶対に重ならないようにする */
+}
+.pad.pad-h-xxs .pad-time-display {
+  margin-top: 1px !important;
+  padding: 1px 2px !important;
+}
+
+
+
+</style>
+</head>
+<body>
+
+  <!-- ヘッダーエリア -->
+  <header>
+    <div class="app-title-container">
+      <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
+      <span class="app-version" id="appVersion" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 6px 14px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); white-space: nowrap; margin-left: 8px;">2026-08-18 v40（Mac版土台）</span>
+      <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
+      <div class="app-instructions">
+        <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
+        <span class="inst-item"><span class="inst-badge">クリック</span>選択</span>
+        <span class="inst-item"><span class="inst-badge">ダブルクリック</span>再生/停止</span>
+      </div>
+    </div>
+    
+    <!-- 簡易周波数ビジュアル (完全センター配置) -->
+    <div class="visualizer-container" id="visualizer" style="position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none;">
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+      <div class="vis-bar"></div>
+    </div>
+    
+    <!-- PANICボタン (ビジュアルと絶対に重ならないよう中央から右にオフセット配置) -->
+    <button class="btn btn-panic" id="btnPanic" style="position: absolute; left: calc(50% + 60px); height: 38px; font-size: 0.9rem; font-weight: 700; min-width: 240px; padding: 0 32px; border-radius: 6px; box-shadow: 0 0 10px rgba(255, 77, 109, 0.2); white-space: nowrap; text-align: center; z-index: 10;">
+      🛑 PANIC (全停止)
+    </button>
+    
+    <div class="header-controls">
+      <button class="btn btn-secondary" id="btnHeaderSettings" style="height: 38px; font-weight: 700; white-space: nowrap;">
+        ⚙️ 設定
+      </button>
+    </div>
+  </header>
+
+  <!-- メインコンテンツレイアウト (グリッドと右側サイドバーの2分割) -->
+  <main>
+    <!-- 左側: パッドグリッド -->
+    <section class="grid-container">
+      <div class="page-selector-container">
+        <div class="page-selector" id="pageSelector">
+          <button class="btn-page active" data-page="0">ページ 1</button>
+          <button class="btn-page" data-page="1">ページ 2</button>
+          <button class="btn-page" data-page="2">ページ 3</button>
+        </div>
+      </div>
+      <div class="pad-grid" id="padGrid">
+        <!-- JSで動的にパッドを生成します -->
+      </div>
+    </section>
+
+    <!-- 右側: コントロール＆設定サイドバー -->
+    <aside class="control-sidebar closed" id="controlSidebar">
+      <!-- サイドバーヘッダー（閉じるボタンなど） -->
+      <div class="sidebar-header" style="display: flex; justify-content: flex-end; align-items: center; padding: 0 4px; margin-bottom: -10px;">
+        <button class="btn-close-sidebar" id="btnCloseSidebar" style="background: none; border: none; color: var(--text-secondary); font-size: 1.4rem; cursor: pointer; padding: 4px 8px; transition: color 0.2s;" aria-label="閉じる">✕</button>
+      </div>
+
+      <!-- 設定切り替えタブ -->
+      <div class="sidebar-tabs" id="sidebarTabs">
+        <button class="tab-btn active" id="tabBtnMaster" data-target="masterSettingsPanel">📢 全体設定</button>
+        <button class="tab-btn" id="tabBtnPad" data-target="padSettingsPanel">✏️ パッド設定</button>
+      </div>
+
+      <!-- マスターコントロールパネル -->
+      <div class="sidebar-panel master-panel" id="masterSettingsPanel" style="display: none;">
+        <h2 class="panel-title">📢 全体設定</h2>
+        
+        <!-- マスターボリューム -->
+        <div class="control-row">
+          <span class="control-label">全体音量</span>
+          <div class="slider-row-container">
+            <span class="volume-icon" style="font-size: 0.95rem;">🔊</span>
+            <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.8">
+            <span class="control-value" id="masterVolumeVal">80%</span>
+          </div>
+        </div>
+
+        <!-- グリッドサイズ設定 (横並び) -->
+        <div class="control-row-separator"></div>
+        <div class="control-row">
+          <span class="control-label">グリッド数</span>
+          <div class="grid-inputs-container" style="display: flex; align-items: center; gap: 4px;">
+            <label for="gridRows" style="font-size: 0.95rem; font-weight: 700;">縦</label>
+            <input type="number" id="gridRows" min="1" max="3" value="3" style="width: 48px; height: 34px; font-size: 1.05rem; text-align: center;">
+            <label for="gridCols" style="font-size: 0.95rem; font-weight: 700; margin-left: 6px;">横</label>
+            <input type="number" id="gridCols" min="1" max="4" value="4" style="width: 48px; height: 34px; font-size: 1.05rem; text-align: center;">
+          </div>
+        </div>
+
+        <!-- 文字サイズ調整 (すべて横並び1行化) -->
+        <div class="control-row-separator"></div>
+        <div class="control-row">
+          <span class="control-label">曲名サイズ</span>
+          <div class="slider-row-container">
+            <input type="range" id="titleFontSize" min="9" max="24" step="0.5" value="14">
+            <span class="control-value" id="titleFontSizeVal">14pt</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">メモサイズ</span>
+          <div class="slider-row-container">
+            <input type="range" id="commentFontSize" min="8" max="20" step="0.5" value="12">
+            <span class="control-value" id="commentFontSizeVal">12pt</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">時間サイズ</span>
+          <div class="slider-row-container">
+            <input type="range" id="timeFontSize" min="9" max="24" step="0.5" value="13">
+            <span class="control-value" id="timeFontSizeVal">13pt</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">テーマ</span>
+          <div style="display: flex; gap: 6px; flex: 1; justify-content: flex-end;">
+            <select id="themeSelector" style="height: 34px; padding: 0 10px; font-size: 0.95rem; font-weight: 700; border-radius: 6px; font-family: var(--font-sans); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-primary);">
+              <option value="dark" style="background: #121621; color: #fff;">🌑 ダーク</option>
+              <option value="light" style="background: #fff; color: #000;">☀️ ライト</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- プリセット管理 -->
+        <div class="control-row-separator"></div>
+        <div class="control-row" style="margin-top: 2px;">
+          <span class="control-label">ファイル</span>
+          <div style="display: flex; gap: 6px; flex: 1; justify-content: flex-end;">
+            <button class="btn btn-secondary" id="btnExportPreset" style="height: 34px; padding: 0 10px; font-size: 0.9rem; font-weight: 700;">
+              📤 保存
+            </button>
+            <button class="btn btn-secondary" id="btnImportPreset" style="height: 34px; padding: 0 10px; font-size: 0.9rem; font-weight: 700;">
+              📥 復元
+            </button>
+          </div>
+          <input type="file" id="presetFileInput" accept=".json" style="display: none;">
+        </div>
+      </div>
+
+      <!-- パッド詳細設定パネル (サイドバー内に常時表示) -->
+      <div class="sidebar-panel pad-settings-panel" id="padSettingsPanel" style="display: none; flex: 1; overflow-y: hidden;">
+        <h2 class="panel-title" id="selectedPadTitle">✏️ パッド設定</h2>
+        
+        <!-- 未選択時のメッセージ -->
+        <div class="no-pad-selected-message" id="noPadSelectedMsg">
+          <p style="font-size: 1.05rem; font-weight: 700; color: var(--text-secondary); text-align: center; margin-top: 20px;">編集するパッドを選択してください。</p>
+        </div>
+
+        <!-- パッド設定コンテンツ (1行横並びレイアウト) -->
+        <div class="settings-scroll-content" id="settingsContent" style="display: none; flex-direction: column; gap: 8px;">
+          <!-- 音声インポート -->
+          <div class="control-row">
+            <span class="control-label">音声ファイル</span>
+            <div class="import-btn-wrapper" style="flex: 1; display: flex; justify-content: flex-end;">
+              <button class="btn btn-secondary" id="btnSelectFile" style="height: 34px; padding: 0 10px; font-size: 0.95rem; font-weight: 700;">
+                📁 選択
+              </button>
+              <input type="file" id="audioFileInput" accept="audio/*, .mp3, .wav, .m4a, .aac, .mp4, .caf, .aif, .aiff">
+            </div>
+          </div>
+
+          <!-- パッド名編集 -->
+          <div class="control-row">
+            <span class="control-label">曲名</span>
+            <input type="text" id="padNameInput" placeholder="表示名" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px;">
+          </div>
+
+          <!-- パッドコメント編集 -->
+          <div class="control-row">
+            <span class="control-label">メモ</span>
+            <input type="text" id="padCommentInput" placeholder="例: BPM 120" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px;">
+          </div>
+
+          <!-- キー割り当て設定 -->
+          <div class="control-row">
+            <span class="control-label">キー割り当て</span>
+            <button class="btn key-recorder-btn" id="btnRecordKey" style="height: 34px; padding: 0 10px; font-size: 0.95rem; font-weight: 700; min-width: 100px;">変更</button>
+          </div>
+
+          <!-- 再生設定: 音量 -->
+          <div class="control-row">
+            <span class="control-label">音量</span>
+            <div class="slider-row-container">
+              <input type="range" id="padVolumeInput" min="0" max="1.5" step="0.05" value="1.0">
+              <span class="control-value" id="padVolumeVal">100%</span>
+            </div>
+          </div>
+
+          <!-- 再生設定: 再生開始位置 -->
+          <div class="control-row">
+            <span class="control-label">開始位置</span>
+            <div class="slider-row-container">
+              <input type="range" id="padStartOffsetInput" min="0" max="60" step="0.1" value="0.0">
+              <span class="control-value" id="padStartOffsetVal">0.0s</span>
+            </div>
+          </div>
+
+          <!-- 再生設定: フェードイン/アウト (それぞれ1行化) -->
+          <div class="control-row">
+            <span class="control-label">フェードイン</span>
+            <div class="slider-row-container">
+              <input type="range" id="padFadeInInput" min="0" max="5" step="0.1" value="0.0">
+              <span class="control-value" id="padFadeInVal">0.0s</span>
+            </div>
+          </div>
+          <div class="control-row">
+            <span class="control-label">フェードアウト</span>
+            <div class="slider-row-container">
+              <input type="range" id="padFadeOutInput" min="0" max="5" step="0.1" value="2.0">
+              <span class="control-value" id="padFadeOutVal">2.0s</span>
+            </div>
+          </div>
+
+          <!-- 再生設定: トリガーモード -->
+          <div class="control-row">
+            <span class="control-label">再生モード</span>
+            <select id="padPlayMode" style="flex: 1; max-width: 180px; height: 34px; font-size: 1.0rem; padding: 0 8px;">
+              <option value="overlap">Overlap (重ねる)</option>
+              <option value="solo">Solo (他を消す)</option>
+              <option value="retrigger">Retrigger (頭出し)</option>
+              <option value="crossfade" selected>CrossFade (クロス)</option>
+            </select>
+          </div>
+
+          <!-- トグル設定 (ループ) -->
+          <div class="control-row" style="padding: 2px 0;">
+            <span class="control-label">ループ再生</span>
+            <label class="switch" style="width: 44px; height: 22px;">
+              <input type="checkbox" id="padLoopToggle">
+              <span class="slider" style="border-radius: 22px;"></span>
+            </label>
+          </div>
+
+          <!-- カラーテーマ変更 -->
+          <div class="control-row">
+            <span class="control-label">ボタン色</span>
+            <div class="color-picker" id="colorPicker">
+              <div class="color-option red selected" data-color="red" title="レッド"></div>
+              <div class="color-option blue" data-color="blue" title="ブルー"></div>
+              <div class="color-option green" data-color="green" title="グリーン"></div>
+              <div class="color-option yellow" data-color="yellow" title="イエロー"></div>
+              <div class="color-option purple" data-color="purple" title="パープル"></div>
+              <div class="color-option orange" data-color="orange" title="オレンジ"></div>
+              <div class="color-option slate" data-color="slate" title="スレートグレー"></div>
+              <label class="color-option-custom" title="カスタム色">
+                <input type="color" id="customColorInput" style="display: none;">
+              </label>
+            </div>
+          </div>
+
+          <!-- パッドクリア -->
+          <button class="btn btn-danger" id="btnClearPad" style="height: 36px; font-size: 0.95rem; font-weight: 700; margin-top: 4px;">
+            🗑️ 設定を初期化（クリア）
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+
+
+  <!-- ヘルプダイアログ (取り込みファイル形式説明) -->
+  <dialog id="helpModal" class="help-modal">
+    <div class="help-modal-content">
+      <span class="close-help-btn" id="closeHelpBtn">&times;</span>
+      <h2>対応音声ファイル形式</h2>
+      <p>Pondashi は、ブラウザで動作する主要な音声フォーマットに対応しています。</p>
+      <div class="help-format-list">
+        <div class="format-item">
+          <span class="format-badge wav">WAV</span>
+          <span class="format-desc">非圧縮形式。最も低遅延で即時再生に適しています。</span>
+        </div>
+        <div class="format-item">
+          <span class="format-badge mp3">MP3</span>
+          <span class="format-desc">標準的な圧縮形式。ファイルサイズを節約できます。</span>
+        </div>
+        <div class="format-item">
+          <span class="format-badge m4a">M4A / AAC</span>
+          <span class="format-desc">高音質かつ高効率な圧縮形式（macOS / iOS環境で推奨）。</span>
+        </div>
+        <div class="format-item">
+          <span class="format-badge generic">FLAC / OGG</span>
+          <span class="format-desc">その他、各オーディオ形式に対応。</span>
+        </div>
+      </div>
+      <p class="help-note">※ サンプリングレートは 44.1kHz または 48kHz を推奨します。ビットレートは任意ですが、WAVファイルが最も再生パフォーマンスに優れています。</p>
+      
+      <!-- アプリアイコン保存セクション -->
+      <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 15px; display: flex; align-items: center; gap: 15px; text-align: left;">
+        <img src="icon.png" style="width: 72px; height: 72px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); -webkit-touch-callout: default;" alt="アイコン">
+        <div style="flex: 1;">
+          <h4 style="margin: 0 0 4px 0; font-size: 1.05rem; color: var(--color-cyan);">iPadホーム画面用アイコン画像の保存</h4>
+          <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">左のアイコン画像を長押しして「写真に追加（保存）」してください。iPadのショートカットアプリ等でホーム画面に配置する際のアイコン画像として選択できます。</p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+
+  <!-- スクリプトの読み込み -->
+  <script>
+// Web Audio API と IndexedDB を用いたポン出しオーディオエンジン
+// ★v40: Mac版の骨格はそのまま。iPad v33.2 の「メモリの台帳」（容量オーバーを登録前に止める）だけを追加した。
+
+const MAX_PADS = 256; // サポートする最大パッド数
+
+// ★v40 追加（出どころ: iPad v33.2）───────────────────────────
+//   1分ひろげると約21.2MB（44.1kHzステレオの計算値）
+//   1曲の上限450MB（約21分）／合計の上限700MB（iPad Air 2 のメモリ2GBの安全側）
+//   Mac自体はメモリに余裕があるが、この土台をiPadにも使う前提のため、
+//   ここで安全側の上限を掛けておく（Macで上限に届くことは通常無い）。
+const MB_UNIT = 1048576;
+const MB_PER_MIN = 21.2;
+const LIMIT_ONE_SONG_MB = 450;
+const LIMIT_TOTAL_MB = 700;
+// ─────────────────────────────────────────────────
+
+class PondashiAudioEngine {
+  constructor() {
+    this.audioCtx = null;
+    this.masterGainNode = null;
+    this.db = null;
+    this.dbName = 'PondashiDB';
+    this.storeName = 'audio_pads';
+
+    // メモリ上のオーディオデータ・設定のキャッシュ (最大 MAX_PADS 個)
+    this.pads = Array(MAX_PADS).fill(null).map((_, i) => this.getDefaultPadConfig(i));
+
+    // 現在再生中のソースノードとゲインノードの追跡 (停止・フェードアウト用)
+    this.activeSources = Array(MAX_PADS).fill(null).map(() => []);
+
+    // アナライザー (ビジュアル用)
+    this.analyser = null;
+  }
+
+  // デフォルトのパッド設定
+  getDefaultPadConfig(index) {
+    // 初期キー割り当て (最初の16パッドのみ。それ以降はキーなし)
+    const defaultKeys = [
+      '1', '2', '3', '4',
+      'q', 'w', 'e', 'r',
+      'a', 's', 'd', 'f',
+      'z', 'x', 'c', 'v'
+    ];
+
+    return {
+      id: index,
+      name: '空のパッド',
+      audioData: null,   // ArrayBuffer (IndexedDB保存用)
+      audioBuffer: null, // デコード済みの AudioBuffer (再生用)
+      key: defaultKeys[index] || '',
+      volume: 1.0,       // 個別音量 (0.0 〜 1.5)
+      loop: false,
+      startOffset: 0.0,  // 再生開始位置 (秒)
+      fadeIn: 0.0,       // フェードイン秒数
+      fadeOut: 2.0,      // フェードアウト秒数 (初期設定2秒)
+      playMode: 'crossfade', // 'overlap' | 'solo' | 'retrigger' | 'crossfade' (初期設定クロス)
+      theme: 'theme-cyan', // 'theme-cyan' | 'theme-rose' | 'theme-purple' | 'theme-emerald' | 'theme-yellow'
+      comment: ''         // 曲ボタン用のメモ・コメント
+    };
+  }
+
+  // オーディオコンテキストの初期化 (ユーザーのアクション後に実行)
+  initAudio() {
+    if (this.audioCtx) return;
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    this.audioCtx = new AudioContextClass();
+
+    this.masterGainNode = this.audioCtx.createGain();
+    this.masterGainNode.gain.value = 0.8;
+
+    this.analyser = this.audioCtx.createAnalyser();
+    this.analyser.fftSize = 32;
+
+    this.masterGainNode.connect(this.analyser);
+    this.analyser.connect(this.audioCtx.destination);
+  }
+
+  // IndexedDB の初期化
+  initDB() {
+    return new Promise((resolve) => {
+      try {
+        if (!window.indexedDB) {
+          console.warn('IndexedDB is not supported in this environment.');
+          resolve(null);
+          return;
+        }
+
+        const request = indexedDB.open(this.dbName, 1);
+
+        request.onerror = (event) => {
+          console.warn('IndexedDB failed to open, running in memory-only mode:', event.target.error);
+          resolve(null);
+        };
+
+        request.onsuccess = (event) => {
+          this.db = event.target.result;
+          resolve(this.db);
+        };
+
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName, { keyPath: 'id' });
+          }
+        };
+      } catch (e) {
+        console.warn('IndexedDB initialization crashed, running in memory-only mode:', e);
+        resolve(null);
+      }
+    });
+  }
+
+  // データベースからすべての設定と音声をロード
+  async loadAllPads() {
+    try {
+      await this.initDB();
+    } catch (e) {
+      console.warn('initDB failed, running in memory-only:', e);
+    }
+
+    if (!this.db) {
+      console.warn('Running in memory-only mode. Audio will not be persisted.');
+      return this.pads;
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const transaction = this.db.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(transaction.objectStoreNames[0]);
+        const request = store.getAll();
+
+        request.onsuccess = async (event) => {
+          const results = event.target.result;
+
+          for (const data of results) {
+            const index = data.id;
+            if (index >= 0 && index < MAX_PADS) {
+              this.pads[index] = { ...this.pads[index], ...data };
+
+              if (data.audioData && this.audioCtx) {
+                try {
+                  const bufferCopy = data.audioData.slice(0);
+                  this.pads[index].audioBuffer = await this.decodeAudio(bufferCopy);
+                } catch (e) {
+                  console.error(`パッド ${index} の音声デコードに失敗しました:`, e);
+                }
+              }
+            }
+          }
+          resolve(this.pads);
+        };
+
+        request.onerror = (event) => {
+          console.error('loadAllPads transaction error:', event.target.error);
+          resolve(this.pads);
+        };
+      } catch (e) {
+        console.error('loadAllPads transaction exception:', e);
+        resolve(this.pads);
+      }
+    });
+  }
+
+  // 音声データをデコード (iOS Safari対策のため async 化)
+  async decodeAudio(arrayBuffer) {
+    if (!this.audioCtx) {
+      throw new Error('AudioContext が初期化されていません。');
+    }
+
+    // iOS Safari対策: suspended 状態のまま decodeAudioData を呼ぶと解決されないバグを回避
+    if (this.audioCtx.state === 'suspended') {
+      try {
+        await this.audioCtx.resume();
+      } catch (e) {
+        console.warn('AudioContext の再開に失敗しました:', e);
+      }
+    }
+
+    return new Promise((resolve, reject) => {
+      let isSettled = false;
+
+      const timeoutId = setTimeout(() => {
+        if (!isSettled) {
+          isSettled = true;
+          reject(new Error('オーディオデコードがタイムアウトしました（3秒以上応答がありません）。'));
+        }
+      }, 3000);
+
+      try {
+        this.audioCtx.decodeAudioData(
+          arrayBuffer,
+          (decodedBuffer) => {
+            if (!isSettled) {
+              isSettled = true;
+              clearTimeout(timeoutId);
+              resolve(decodedBuffer);
+            }
+          },
+          (err) => {
+            if (!isSettled) {
+              isSettled = true;
+              clearTimeout(timeoutId);
+              reject(err || new Error('デコードエラー'));
+            }
+          }
+        );
+      } catch (e) {
+        if (!isSettled) {
+          isSettled = true;
+          clearTimeout(timeoutId);
+          reject(e);
+        }
+      }
+    });
+  }
+
+  // ★v40 追加（出どころ: iPad v33.2）───────────────────────────
+  // すでにひろげてメモリに乗っている音の合計MBを数える
+  _bufMB(buf) {
+    if (!buf) return 0;
+    // AudioBuffer: サンプル数 × チャンネル数 × 4バイト(float32)
+    return (buf.length * buf.numberOfChannels * 4) / MB_UNIT;
+  }
+
+  _usedMB() {
+    let sum = 0;
+    for (const pad of this.pads) {
+      sum += this._bufMB(pad && pad.audioBuffer);
+    }
+    return sum;
+  }
+
+  // 曲の長さを、音をひろげずに調べる（<audio> の metadata だけ読むので速い）
+  _probeMinutes(file) {
+    return new Promise((resolve) => {
+      let done = false;
+      const el = document.createElement('audio');
+      const url = URL.createObjectURL(file);
+      const finish = (v) => {
+        if (done) return;
+        done = true;
+        try { URL.revokeObjectURL(url); el.removeAttribute('src'); } catch (e) {}
+        resolve(v);
+      };
+      el.preload = 'metadata';
+      el.onloadedmetadata = () => finish(isFinite(el.duration) && el.duration > 0 ? el.duration / 60 : null);
+      el.onerror = () => finish(null);
+      setTimeout(() => finish(null), 5000); // 5秒で諦める
+      el.src = url;
+    });
+  }
+
+  // ひろげたら何MBになるかの見込み（長さが分からないときはファイルサイズの22倍で安全側に見る）
+  _estimateMB(file, minutes) {
+    if (minutes) return minutes * MB_PER_MIN;
+    return (file.size / MB_UNIT) * 22;
+  }
+  // ─────────────────────────────────────────────────
+
+  // パッド情報を保存 (音声バイナリ含む)
+  savePad(index, config) {
+    this.pads[index] = { ...this.pads[index], ...config };
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        resolve();
+        return;
+      }
+
+      const dataToSave = {
+        id: index,
+        name: config.name,
+        key: config.key,
+        volume: config.volume,
+        loop: config.loop,
+        startOffset: config.startOffset !== undefined ? config.startOffset : 0.0,
+        fadeIn: config.fadeIn,
+        fadeOut: config.fadeOut,
+        playMode: config.playMode,
+        theme: config.theme,
+        comment: config.comment !== undefined ? config.comment : ''
+      };
+
+      if (config.audioData) {
+        dataToSave.audioData = config.audioData.slice(0);
+      }
+
+      try {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(dataToSave);
+
+        request.onsuccess = () => {
+          resolve();
+        };
+
+        request.onerror = (event) => {
+          console.warn('savePad IndexedDB 書き込みエラー（メモリ内モードへフォールバックします）:', event.target.error);
+          this.db = null; // 今後はメモリ内動作にする
+          resolve(); // 登録自体は成功させる
+        };
+
+        transaction.onerror = (event) => {
+          console.warn('savePad transaction エラー（メモリ内モードへフォールバックします）:', event.target.error);
+          this.db = null;
+          resolve();
+        };
+      } catch (e) {
+        console.warn('savePad 例外発生（メモリ内モードへフォールバックします）:', e);
+        this.db = null;
+        resolve();
+      }
+    });
+  }
+
+  // パッドの削除 (初期化)
+  clearPad(index) {
+    this.stopPad(index, 0);
+    const defaultPad = this.getDefaultPadConfig(index);
+    this.pads[index] = defaultPad;
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        resolve(defaultPad);
+        return;
+      }
+
+      const transaction = this.db.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.delete(index);
+
+      request.onsuccess = () => {
+        resolve(defaultPad);
+      };
+
+      request.onerror = (event) => {
+        reject(event.target.error);
+      };
+    });
+  }
+
+  // 音声ファイルのインポート処理
+  async importFileToPad(index, file) {
+    this.initAudio();
+
+    // ★v40 追加（出どころ: iPad v33.2）───────────────────────────
+    // ひろげる前に長さだけ調べて、大きすぎる曲は登録前に止める。
+    // 2時間270MBの曲をそのままひろげると約2.5GBになり iPad が落ちる（実機で確認済みの事故）。
+    const minutes = await this._probeMinutes(file);
+    const est = this._estimateMB(file, minutes);
+    const nowMB = this._usedMB();
+    const lenText = minutes ? `約${minutes.toFixed(1)}分` : `長さ不明`;
+
+    if (est > LIMIT_ONE_SONG_MB) {
+      throw new Error(`✖ この曲は容量オーバーです（${lenText} → ひろげると約${Math.round(est)}MB / 1曲の上限 ${LIMIT_ONE_SONG_MB}MB）登録しませんでした`);
+    }
+    if (nowMB + est > LIMIT_TOTAL_MB) {
+      throw new Error(`✖ メモリの合計が上限を超えます（いま${Math.round(nowMB)}MB ＋ この曲${Math.round(est)}MB / 上限 ${LIMIT_TOTAL_MB}MB）登録しませんでした`);
+    }
+    // ─────────────────────────────────────────────────
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        const arrayBuffer = e.target.result;
+        try {
+          const decoded = await this.decodeAudio(arrayBuffer.slice(0));
+
+          const currentName = this.pads[index].name;
+          const isDefaultName = currentName === '空のパッド' || currentName === '';
+          const padConfig = {
+            ...this.pads[index],
+            name: isDefaultName ? file.name.replace(/\.[^/.]+$/, "") : currentName,
+            audioData: arrayBuffer,
+            audioBuffer: decoded
+          };
+
+          await this.savePad(index, padConfig);
+          resolve(padConfig);
+        } catch (err) {
+          console.error('音声デコードエラー:', err);
+          reject(new Error('対応していない音声形式か、ファイルが破損しています。'));
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error('ファイルの読み込みに失敗しました。'));
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  // マスター音量の調整 (0.0 〜 1.0)
+  setMasterVolume(volume) {
+    this.initAudio();
+    if (this.masterGainNode) {
+      this.masterGainNode.gain.value = volume;
+    }
+  }
+
+  // パッドの再生トリガー
+  playPad(index, onPlayEnd) {
+    this.initAudio();
+
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+
+    const pad = this.pads[index];
+    if (!pad || !pad.audioBuffer) return false;
+
+    const currentTime = this.audioCtx.currentTime;
+
+    // 再生モードの処理
+    if (pad.playMode === 'solo') {
+      for (let i = 0; i < MAX_PADS; i++) {
+        if (i !== index) this.stopPad(i);
+      }
+    } else if (pad.playMode === 'retrigger') {
+      this.stopPad(index, 0.05);
+    } else if (pad.playMode === 'crossfade') {
+      for (let i = 0; i < MAX_PADS; i++) {
+        if (i !== index && this.isPlaying(i)) {
+          const otherPad = this.pads[i];
+          let crossFadeTime = pad.fadeIn > 0 ? pad.fadeIn : (otherPad.fadeOut > 0 ? otherPad.fadeOut : 1.5);
+          this.stopPad(i, crossFadeTime);
+        }
+      }
+    }
+
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = pad.audioBuffer;
+    source.loop = pad.loop;
+
+    const startOffset = pad.startOffset !== undefined ? pad.startOffset : 0.0;
+    const boundedOffset = Math.min(startOffset, Math.max(0, pad.audioBuffer.duration - 0.01));
+
+    if (source.loop) {
+      source.loopStart = boundedOffset;
+    }
+
+    const padGain = this.audioCtx.createGain();
+
+    if (pad.fadeIn > 0) {
+      padGain.gain.setValueAtTime(0, currentTime);
+      padGain.gain.linearRampToValueAtTime(pad.volume, currentTime + pad.fadeIn);
+    } else {
+      padGain.gain.setValueAtTime(pad.volume, currentTime);
+    }
+
+    source.connect(padGain);
+    padGain.connect(this.masterGainNode);
+
+    source.start(currentTime, boundedOffset);
+
+    const playInstance = {
+      source: source,
+      gainNode: padGain,
+      startTime: currentTime,
+      onEndCallback: onPlayEnd
+    };
+
+    this.activeSources[index].push(playInstance);
+
+    source.onended = () => {
+      const idx = this.activeSources[index].indexOf(playInstance);
+      if (idx !== -1) {
+        this.activeSources[index].splice(idx, 1);
+      }
+
+      if (!source.loop && this.activeSources[index].length === 0 && typeof onPlayEnd === 'function') {
+        onPlayEnd(index);
+      }
+    };
+
+    return true;
+  }
+
+  // パッドの音量を動的に設定（再生中にもリアルタイム反映）
+  setPadVolume(index, volume) {
+    const pad = this.pads[index];
+    if (pad) {
+      pad.volume = volume;
+    }
+    const instances = this.activeSources[index];
+    if (instances && instances.length > 0) {
+      const currentTime = this.audioCtx ? this.audioCtx.currentTime : 0;
+      instances.forEach(instance => {
+        if (instance.gainNode && !instance.isFadingOut) {
+          instance.gainNode.gain.setValueAtTime(volume, currentTime);
+        }
+      });
+    }
+  }
+
+  // パッドの再生停止
+  stopPad(index, customFadeOutTime = null) {
+    if (!this.audioCtx) return;
+
+    const pad = this.pads[index];
+    const instances = this.activeSources[index];
+    if (!instances || instances.length === 0) return;
+
+    const currentTime = this.audioCtx.currentTime;
+    const fadeOutDuration = customFadeOutTime !== null ? customFadeOutTime : (pad ? pad.fadeOut : 0);
+
+    const instancesToStop = [...instances];
+
+    instancesToStop.forEach((instance) => {
+      const source = instance.source;
+      const gainNode = instance.gainNode;
+
+      try {
+        source.loop = false;
+
+        if (fadeOutDuration > 0) {
+          instance.isFadingOut = true;
+          instance.fadeOutStartTime = currentTime;
+          instance.fadeOutDuration = fadeOutDuration;
+          const currentGain = gainNode.gain.value;
+          gainNode.gain.setValueAtTime(currentGain, currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, currentTime + fadeOutDuration);
+          source.stop(currentTime + fadeOutDuration);
+        } else {
+          source.stop(currentTime);
+        }
+      } catch (e) {
+        console.warn('停止中にエラーが発生しました:', e);
+      }
+    });
+
+    if (fadeOutDuration <= 0) {
+      this.activeSources[index] = [];
+    }
+  }
+
+  // 全音即時停止 (Panic) — 現在表示中のパッド数を引数で渡す
+  stopAll(totalPads = MAX_PADS) {
+    for (let i = 0; i < totalPads; i++) {
+      this.stopPad(i, 0.05);
+    }
+  }
+
+  // パッドが再生中かどうか
+  isPlaying(index) {
+    return this.activeSources[index] && this.activeSources[index].length > 0;
+  }
+
+  // パッドがフェードアウト中かどうか
+  isFadingOut(index) {
+    if (!this.activeSources[index] || this.activeSources[index].length === 0) return false;
+    return this.activeSources[index].some(inst => inst.isFadingOut);
+  }
+
+  // パッドのフェードアウト進行状況（1.0〜0.0）を取得
+  getFadeOutProgress(index) {
+    if (!this.audioCtx || !this.activeSources[index] || this.activeSources[index].length === 0) return 1.0;
+
+    const fadingInstance = this.activeSources[index].find(inst => inst.isFadingOut);
+    if (!fadingInstance || !fadingInstance.fadeOutStartTime || !fadingInstance.fadeOutDuration) return 1.0;
+
+    const elapsed = this.audioCtx.currentTime - fadingInstance.fadeOutStartTime;
+    const progress = Math.max(0, Math.min(1, elapsed / fadingInstance.fadeOutDuration));
+    return 1.0 - progress;
+  }
+
+  // パッドのフェードアウト残り時間を秒数で取得
+  getFadeOutTimeRemaining(index) {
+    if (!this.audioCtx || !this.activeSources[index] || this.activeSources[index].length === 0) return 0;
+
+    const fadingInstance = this.activeSources[index].find(inst => inst.isFadingOut);
+    if (!fadingInstance || !fadingInstance.fadeOutStartTime || !fadingInstance.fadeOutDuration) return 0;
+
+    const elapsed = this.audioCtx.currentTime - fadingInstance.fadeOutStartTime;
+    const remaining = Math.max(0, fadingInstance.fadeOutDuration - elapsed);
+    return remaining;
+  }
+
+
+  // アナライザーのデータを取得 (ビジュアル用)
+  getVisualData() {
+    if (!this.analyser) return [];
+    const bufferLength = this.analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    this.analyser.getByteFrequencyData(dataArray);
+    return dataArray;
+  }
+
+  // ArrayBuffer を Base64 文字列に変換するヘルパー
+  _arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+  }
+
+  // Base64 文字列を ArrayBuffer に変換するヘルパー
+  _base64ToArrayBuffer(base64) {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  // 現在の全パッドデータをJSON形式（音声バイナリはBase64）でエクスポート
+  async exportPreset() {
+    const exportPads = [];
+    for (let i = 0; i < MAX_PADS; i++) {
+      const pad = this.pads[i];
+      // デフォルト状態でない（＝何かしらカスタムされている）パッドのみを抽出してファイルサイズを削減
+      const isDefault = pad.name === '空のパッド' &&
+                        !pad.audioData &&
+                        pad.key === (this.getDefaultPadConfig(i).key || '') &&
+                        pad.volume === 1.0 &&
+                        !pad.loop &&
+                        pad.startOffset === 0.0 &&
+                        pad.fadeIn === 0.0 &&
+                        pad.fadeOut === 0.0 &&
+                        pad.playMode === 'overlap' &&
+                        pad.theme === 'theme-cyan' &&
+                        (pad.comment || '') === '';
+
+      if (!isDefault) {
+        const padCopy = {
+          id: pad.id,
+          name: pad.name,
+          key: pad.key,
+          volume: pad.volume,
+          loop: pad.loop,
+          startOffset: pad.startOffset,
+          fadeIn: pad.fadeIn,
+          fadeOut: pad.fadeOut,
+          playMode: pad.playMode,
+          theme: pad.theme,
+          comment: pad.comment || ''
+        };
+        if (pad.audioData) {
+          padCopy.audioData = this._arrayBufferToBase64(pad.audioData);
+        }
+        exportPads.push(padCopy);
+      }
+    }
+    return JSON.stringify({
+      version: '1.0',
+      generatedAt: new Date().toISOString(),
+      pads: exportPads
+    });
+  }
+
+  // JSON形式のプリセットデータをインポートして適用
+  async importPreset(jsonString) {
+    const data = JSON.parse(jsonString);
+    if (!data || !Array.isArray(data.pads)) {
+      throw new Error('無効なプリセットファイルです。');
+    }
+
+    // 一度すべての再生を停止
+    this.stopAll();
+
+    if (!this.db) {
+      // メモリ上の配列もデフォルトに戻す
+      for (let i = 0; i < MAX_PADS; i++) {
+        this.pads[i] = this.getDefaultPadConfig(i);
+      }
+
+      // インポートデータの流し込み (メモリのみ)
+      for (const padData of data.pads) {
+        const index = padData.id;
+        if (index >= 0 && index < MAX_PADS) {
+          const config = this.getDefaultPadConfig(index);
+          config.name = padData.name;
+          config.key = padData.key;
+          config.volume = padData.volume;
+          config.loop = padData.loop;
+          config.startOffset = padData.startOffset !== undefined ? padData.startOffset : 0.0;
+          config.fadeIn = padData.fadeIn;
+          config.fadeOut = padData.fadeOut;
+          config.playMode = padData.playMode;
+          config.theme = padData.theme;
+          config.comment = padData.comment || '';
+
+          if (padData.audioData) {
+            config.audioData = this._base64ToArrayBuffer(padData.audioData);
+            try {
+              config.audioBuffer = await this.decodeAudio(config.audioData.slice(0));
+            } catch (e) {
+              console.error(`インポート中のデコード失敗: パッド ${index}`, e);
+            }
+          }
+          this.pads[index] = config;
+        }
+      }
+      return;
+    }
+
+    // データベーストランザクションの開始
+    const transaction = this.db.transaction([this.storeName], 'readwrite');
+    const store = transaction.objectStore(this.storeName);
+
+    // 古いデータをすべてクリア
+    await new Promise((resolve, reject) => {
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = (e) => reject(e.target.error);
+    });
+
+    // メモリ上の配列もデフォルトに戻す
+    for (let i = 0; i < MAX_PADS; i++) {
+      this.pads[i] = this.getDefaultPadConfig(i);
+    }
+
+    // インポートデータの流し込み
+    for (const padData of data.pads) {
+      const index = padData.id;
+      if (index >= 0 && index < MAX_PADS) {
+        const config = this.getDefaultPadConfig(index);
+        config.name = padData.name;
+        config.key = padData.key;
+        config.volume = padData.volume;
+        config.loop = padData.loop;
+        config.startOffset = padData.startOffset !== undefined ? padData.startOffset : 0.0;
+        config.fadeIn = padData.fadeIn;
+        config.fadeOut = padData.fadeOut;
+        config.playMode = padData.playMode;
+        config.theme = padData.theme;
+        config.comment = padData.comment || '';
+
+        if (padData.audioData) {
+          config.audioData = this._base64ToArrayBuffer(padData.audioData);
+          try {
+            config.audioBuffer = await this.decodeAudio(config.audioData.slice(0));
+          } catch (e) {
+            console.error(`インポート中のデコード失敗: パッド ${index}`, e);
+          }
+        }
+
+        // データベースに保存し、メモリ上も同期
+        await this.savePad(index, config);
+      }
+    }
+  }
+}
+
+</script>
+  <script>
+// ポン出しアプリケーション UI管理とインタラクションロジック
+
+let engine;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. localStorageの設定をIndexedDBに二重保存するヘルパー（先行宣言）
+  let syncSettingsToIndexedDB = null;
+
+  // Safe localStorage wrapper to prevent SecurityError on file:// protocol in iOS Safari
+  const safeLocalStorage = (() => {
+    const memStore = {};
+    
+    const triggerSync = () => {
+      if (typeof syncSettingsToIndexedDB === 'function') {
+        syncSettingsToIndexedDB();
+      }
+    };
+
+    return {
+      getItem(key) {
+        try {
+          return window.localStorage.getItem(key);
+        } catch (e) {
+          return memStore[key] || null;
+        }
+      },
+      setItem(key, value) {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch (e) {
+          memStore[key] = String(value);
+        }
+        triggerSync();
+      },
+      removeItem(key) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch (e) {
+          delete memStore[key];
+        }
+        triggerSync();
+      }
+    };
+  })();
+  const localStorage = safeLocalStorage;
+
+  // PWA Service Workerの登録
+  if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').then((reg) => {
+        console.log('Service Worker 登録成功:', reg.scope);
+      }).catch((err) => {
+        console.error('Service Worker 登録失敗:', err);
+      });
+    });
+  }
+
+  engine = new PondashiAudioEngine();
+
+  // Electron環境の判定
+  const isElectron = (typeof window !== 'undefined' && window.process && window.process.type === 'renderer') || navigator.userAgent.indexOf('Electron') >= 0;
+  if (isElectron) {
+    document.body.classList.add('is-electron');
+  }
+
+  // iPad (iOS/iPadOS) の判定 - Electron (デスクトップアプリ) は除外し、ポインター判定も加える
+  const isIPad = !isElectron && (
+    /iPad/i.test(navigator.userAgent) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && window.matchMedia('(pointer: coarse)').matches)
+  );
+  if (isIPad) {
+    document.body.classList.add('is-ipad');
+  }
+
+  // Storage Persistence Request (PWA永続化リクエスト)
+  if (navigator.storage && navigator.storage.persist) {
+    try {
+      const persisted = await navigator.storage.persist();
+      if (persisted) {
+        console.log('Storage persistence granted.');
+      } else {
+        console.log('Storage persistence not granted.');
+      }
+    } catch (e) {
+      console.warn('Storage persistence request failed:', e);
+    }
+  }
+
+  // 2. IndexedDBからlocalStorageの設定を復元するヘルパー
+  const restoreSettingsFromIndexedDB = async () => {
+    return new Promise(async (resolve) => {
+      const db = await engine.initDB();
+      if (!db) {
+        resolve();
+        return;
+      }
+      try {
+        const transaction = db.transaction([engine.storeName], 'readonly');
+        const store = transaction.objectStore(engine.storeName);
+        const request = store.get('global_settings');
+        request.onsuccess = (event) => {
+          const settings = event.target.result;
+          if (settings) {
+            console.log('IndexedDBから全体設定値を復元中...');
+            for (const key in settings) {
+              if (key !== 'id') {
+                // 直接 window.localStorage を使うとエラーを吐く場合があるのでラッパー経由で保存
+                localStorage.setItem(key, settings[key]);
+              }
+            }
+          }
+          resolve();
+        };
+        request.onerror = () => resolve();
+      } catch (e) {
+        console.warn('Settings restore from IndexedDB failed:', e);
+        resolve();
+      }
+    });
+  };
+
+  // syncSettingsToIndexedDBの実体を定義
+  syncSettingsToIndexedDB = async () => {
+    if (!engine.db) {
+      try {
+        await engine.initDB();
+      } catch (e) {
+        return;
+      }
+    }
+    if (!engine.db) return;
+
+    const settings = { id: 'global_settings' };
+    let hasSettings = false;
+    
+    const settingsKeys = [
+      'pondashi_selected_pad_index',
+      'pondashi_master_volume',
+      'pondashi_title_size',
+      'pondashi_comment_size',
+      'pondashi_time_size',
+      'pondashi_current_page',
+      'pondashi_page_names',
+      'pondashi_theme',
+      'pondashi_grid_rows_page_0',
+      'pondashi_grid_cols_page_0',
+      'pondashi_grid_rows_page_1',
+      'pondashi_grid_cols_page_1',
+      'pondashi_grid_rows_page_2',
+      'pondashi_grid_cols_page_2'
+    ];
+
+    for (const key of settingsKeys) {
+      const val = localStorage.getItem(key);
+      if (val !== null) {
+        settings[key] = val;
+        hasSettings = true;
+      }
+    }
+
+    if (!hasSettings) return;
+
+    try {
+      const transaction = engine.db.transaction([engine.storeName], 'readwrite');
+      const store = transaction.objectStore(engine.storeName);
+      store.put(settings);
+    } catch (e) {
+      console.warn('Failed to sync settings to IndexedDB:', e);
+    }
+  };
+
+  // 起動時にIndexedDBから設定をロードして復元
+  try {
+    await restoreSettingsFromIndexedDB();
+  } catch (e) {
+    console.warn('Failed to restore settings from IndexedDB:', e);
+  }
+
+  let selectedPadIndex = null;
+  let isRecordingKey = false;
+  let animFrameId = null;
+  let currentPage = parseInt(localStorage.getItem('pondashi_current_page')) || 0;
+  const PAGE_PAD_LIMIT = 12; // 1ページあたりの固定パッド枠（最大3x4=12）
+
+  // (isElectronの判定とクラス付与は初期化時に移動しました)
+
+  // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理
+  // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理 ＆ 起動時音声デコード処理
+  const unlockAudio = async () => {
+    engine.initAudio();
+    if (engine.audioCtx && engine.audioCtx.state === 'suspended') {
+      await engine.audioCtx.resume();
+    }
+    console.log('AudioContext が正常にアンロックされました。未デコードの音声を復元します。');
+    
+    // イベントリスナーの解除
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+
+    // 未デコードの音声（audioData があるが audioBuffer がないもの）をすべてデコードする
+    setStatus('以前登録された音声を復元中...', 'loading');
+    let decodedCount = 0;
+    
+    for (let i = 0; i < engine.pads.length; i++) {
+      const pad = engine.pads[i];
+      if (pad.audioData && !pad.audioBuffer) {
+        try {
+          const bufferCopy = pad.audioData.slice(0);
+          pad.audioBuffer = await engine.decodeAudio(bufferCopy);
+          decodedCount++;
+        } catch (e) {
+          console.error(`パッド ${i} のデコードに失敗しました:`, e);
+        }
+      }
+    }
+
+    // 全パッドの描画を更新
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = 0; i < totalPads; i++) {
+      updatePadUI(pageOffset + i);
+    }
+
+    // 選択中のパッドがあれば再度選択状態のUIをリフレッシュ
+    if (selectedPadIndex !== null) {
+      selectPad(selectedPadIndex);
+    }
+
+    if (decodedCount > 0) {
+      setStatus(`${decodedCount}個の追加楽曲を復元しました。`);
+    } else {
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      if (isTouchDevice) {
+        setStatus('アプリケーションが起動しました。空のパッドをダブルタップして音声ファイルを選択してください。');
+      } else {
+        setStatus('アプリケーションが起動しました。音声をドラッグ＆ドロップしてロードしてください。');
+      }
+    }
+  };
+  window.addEventListener('click', unlockAudio);
+  window.addEventListener('touchstart', unlockAudio);
+
+  // 時間フォーマットヘルパー (H:MM:SS)
+  function formatTime(seconds) {
+    if (isNaN(seconds) || seconds === null || seconds === undefined) {
+      return '0:00:00';
+    }
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // 動的スタイルタグ生成による文字サイズ適用（キャッシュやメディアクエリ競合の完全回避）
+  function applyDynamicFontSizes(titleSize, commentSize, timeSize) {
+    let styleEl = document.getElementById('dynamic-font-sizes');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-font-sizes';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      .pad-title {
+        font-size: min(${titleSize}pt, 9.5cqw, 20cqh) !important;
+      }
+      .pad-comment {
+        font-size: min(${commentSize}pt, 7.5cqw, 14cqh) !important;
+      }
+      .pad-time-display, 
+      .pad-time-display span {
+        font-size: min(${timeSize}pt, 8.5cqw, 18cqh) !important;
+      }
+
+      /* 高さクラスによる動的フォント強制上書き (JSスライダー側の動的指定より最優先) */
+      .pad.pad-h-sm .pad-comment {
+        font-size: min(${commentSize * 0.75}pt, 6cqw) !important;
+        margin-top: 1px !important;
+      }
+      .pad.pad-h-sm .pad-time-display,
+      .pad.pad-h-sm .pad-time-display span {
+        font-size: min(${timeSize * 0.85}pt, 7.5cqw) !important;
+        margin-top: 2px !important;
+        padding: 2px 4px !important;
+      }
+
+      .pad.pad-h-xs .pad-comment {
+        font-size: min(${commentSize * 0.52}pt, 5cqw) !important;
+        margin-top: 0px !important;
+        line-height: 1 !important;
+        -webkit-line-clamp: 1 !important;
+      }
+      .pad.pad-h-xs .pad-time-display,
+      .pad.pad-h-xs .pad-time-display span {
+        font-size: min(${timeSize * 0.7}pt, 6.5cqw) !important;
+        margin-top: 1px !important;
+        padding: 1px 2px !important;
+      }
+
+      .pad.pad-h-xxs .pad-comment {
+        display: none !important;
+      }
+      .pad.pad-h-xxs .pad-time-display,
+      .pad.pad-h-xxs .pad-time-display span {
+        font-size: min(${timeSize * 0.6}pt, 6cqw) !important;
+        margin-top: 1px !important;
+        padding: 1px 1px !important;
+      }
+    `;
+  }
+
+  // DOM要素の取得
+  const padGrid = document.getElementById('padGrid');
+  const masterVolume = document.getElementById('masterVolume');
+  const masterVolumeVal = document.getElementById('masterVolumeVal');
+  const btnPanic = document.getElementById('btnPanic');
+  const statusMessage = document.getElementById('statusMessage');
+  const visualizer = document.getElementById('visualizer');
+
+  // グリッドサイズ入力
+  const gridRowsInput = document.getElementById('gridRows');
+  const gridColsInput = document.getElementById('gridCols');
+
+  // 表示サイズ調整
+  const titleFontSize = document.getElementById('titleFontSize');
+  const titleFontSizeVal = document.getElementById('titleFontSizeVal');
+  const commentFontSize = document.getElementById('commentFontSize');
+  const commentFontSizeVal = document.getElementById('commentFontSizeVal');
+  const timeFontSize = document.getElementById('timeFontSize');
+  const timeFontSizeVal = document.getElementById('timeFontSizeVal');
+
+  // パッド設定パネル・右サイドバー・タブの要素
+  const controlSidebar = document.getElementById('controlSidebar');
+  const sidebarTabs = document.getElementById('sidebarTabs');
+  const tabBtnMaster = document.getElementById('tabBtnMaster');
+  const tabBtnPad = document.getElementById('tabBtnPad');
+  const masterSettingsPanel = document.getElementById('masterSettingsPanel');
+  const padSettingsPanel = document.getElementById('padSettingsPanel');
+  const noPadSelectedMsg = document.getElementById('noPadSelectedMsg');
+  const btnHeaderSettings = document.getElementById('btnHeaderSettings');
+  let currentActivePanel = 'masterSettingsPanel';
+  const btnCloseSidebar = document.getElementById('btnCloseSidebar');
+  const settingsContent = document.getElementById('settingsContent');
+  const selectedPadTitle = document.getElementById('selectedPadTitle');
+  const padNameInput = document.getElementById('padNameInput');
+  const padCommentInput = document.getElementById('padCommentInput');
+  const padVolumeInput = document.getElementById('padVolumeInput');
+  const padVolumeVal = document.getElementById('padVolumeVal');
+  const padStartOffsetInput = document.getElementById('padStartOffsetInput');
+  const padStartOffsetVal = document.getElementById('padStartOffsetVal');
+  const padFadeInInput = document.getElementById('padFadeInInput');
+  const padFadeInVal = document.getElementById('padFadeInVal');
+  const padFadeOutInput = document.getElementById('padFadeOutInput');
+  const padFadeOutVal = document.getElementById('padFadeOutVal');
+  const padLoopToggle = document.getElementById('padLoopToggle');
+  const padPlayMode = document.getElementById('padPlayMode');
+  const audioFileInput = document.getElementById('audioFileInput');
+  const btnClearPad = document.getElementById('btnClearPad');
+  const btnRecordKey = document.getElementById('btnRecordKey');
+  const colorPicker = document.getElementById('colorPicker');
+
+  // 設定タブ切り替え用の関数
+  function switchSidebarTab(targetTab) {
+    currentActivePanel = targetTab;
+    if (targetTab === 'masterSettingsPanel') {
+      tabBtnMaster.classList.add('active');
+      tabBtnPad.classList.remove('active');
+      masterSettingsPanel.style.display = 'flex';
+      padSettingsPanel.style.display = 'none';
+    } else {
+      tabBtnMaster.classList.remove('active');
+      tabBtnPad.classList.add('active');
+      masterSettingsPanel.style.display = 'none';
+      padSettingsPanel.style.display = 'flex';
+    }
+  }
+
+  // タブボタンクリック時のイベントリスナー
+  tabBtnMaster.addEventListener('click', () => switchSidebarTab('masterSettingsPanel'));
+  tabBtnPad.addEventListener('click', () => switchSidebarTab('padSettingsPanel'));
+
+  // ヘッダー設定ボタンおよび閉じるボタンのイベント
+  if (btnHeaderSettings) {
+    btnHeaderSettings.addEventListener('click', () => {
+      const isClosed = controlSidebar && controlSidebar.classList.contains('closed');
+      if (isClosed) {
+        showSidebar(currentActivePanel);
+      } else {
+        closeSidebar();
+      }
+    });
+  }
+  if (btnCloseSidebar) {
+    btnCloseSidebar.addEventListener('click', () => {
+      closeSidebar();
+    });
+  }
+
+  // ヘルプおよびページセレクター
+  const pageSelector = document.getElementById('pageSelector');
+  const helpBtn = document.getElementById('helpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelpBtn = document.getElementById('closeHelpBtn');
+  const btnExportPreset = document.getElementById('btnExportPreset');
+  const btnImportPreset = document.getElementById('btnImportPreset');
+  const presetFileInput = document.getElementById('presetFileInput');
+
+
+  // パッドの物理高さと設定されているフォントサイズを動的に比較して重なり判定クラスを付与する関数
+  function updatePadHeightClasses() {
+    const titleSizeInput = document.getElementById('titleFontSize');
+    const commentSizeInput = document.getElementById('commentFontSize');
+    const timeSizeInput = document.getElementById('timeFontSize');
+    
+    const baseTitlePt = titleSizeInput ? parseFloat(titleSizeInput.value) : 14;
+    const baseCommentPt = commentSizeInput ? parseFloat(commentSizeInput.value) : 12;
+    const baseTimePt = timeSizeInput ? parseFloat(timeSizeInput.value) : 13;
+
+    // PtからPxへの簡易換算 (1pt ≒ 1.33px)
+    const titlePx = baseTitlePt * 1.33;
+    const commentPx = baseCommentPt * 1.33;
+    const timePx = baseTimePt * 1.33;
+
+    const pads = padGrid.querySelectorAll('.pad');
+    if (pads.length === 0) return;
+
+    // レンダリング前で clientHeight が 0 になっている可能性があるため、1フレーム（または50ms）後にリトライ
+    const firstPad = pads[0];
+    if (firstPad.clientHeight === 0) {
+      setTimeout(updatePadHeightClasses, 50);
+      return;
+    }
+
+    pads.forEach(padEl => {
+      const totalHeight = padEl.clientHeight;
+      if (totalHeight === 0) return; // 非表示パッドはスキップ
+      
+      // パッド内のヘッダー・フッター・パディング等の固定高さ（約 44px）
+      const reservedHeight = 44;
+      const availableHeight = totalHeight - reservedHeight;
+      const requiredHeight = titlePx + commentPx + timePx + 6; // バッファ6px
+
+      padEl.classList.remove('pad-h-sm', 'pad-h-xs', 'pad-h-xxs');
+
+      if (availableHeight < (titlePx + timePx + 4)) {
+        // タイトルとTime表示すら入らない極限状態
+        padEl.classList.add('pad-h-xxs');
+      } else if (availableHeight < requiredHeight) {
+        // メモを入れるとTime表示と重なる場合
+        padEl.classList.add('pad-h-xs');
+      } else if (availableHeight < requiredHeight * 1.25) {
+        // やや窮屈な場合
+        padEl.classList.add('pad-h-sm');
+      }
+    });
+  }
+
+  // パッドの物理高さを監視して、重なりを防ぐためのクラスを付与する ResizeObserver
+  const padResizeObserver = new ResizeObserver((entries) => {
+    updatePadHeightClasses();
+  });
+
+
+  // 1. パッドグリッドの初期生成 (動的)
+  function createPadElements() {
+    padResizeObserver.disconnect();
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+
+    // CSS変数を更新
+    document.documentElement.style.setProperty('--grid-rows', rows);
+    document.documentElement.style.setProperty('--grid-cols', cols);
+
+    padGrid.innerHTML = '';
+    for (let i = 0; i < totalPads; i++) {
+      const padIdx = pageOffset + i;
+      const padEl = document.createElement('div');
+      padEl.className = 'pad empty';
+      padEl.dataset.index = padIdx;
+      padEl.innerHTML = `
+        <div class="pad-header">
+          <span class="pad-key" id="padKey-${padIdx}">-</span>
+          <div class="pad-header-center-indicators">
+            <span class="mode-indicator" id="indicatorMode-${padIdx}" style="display: none; font-size: 0.75rem; font-weight: 800; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); color: var(--accent-color);"></span>
+            <span class="loop-indicator" id="indicatorLoop-${padIdx}" style="display: none; font-size: 0.75rem; font-weight: 800; background: rgba(0, 242, 254, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0, 242, 254, 0.15); color: var(--color-cyan);">LOOP</span>
+          </div>
+          <span class="volume-indicator" id="indicatorVolume-${padIdx}" style="font-size: 0.75rem; font-weight: 800; color: var(--accent-color); margin-left: auto;"></span>
+        </div>
+        <div class="pad-body">
+          <div class="pad-title" id="padTitle-${padIdx}">空のパッド</div>
+          <div class="pad-comment" id="padComment-${padIdx}"></div>
+          <div class="pad-time-display" id="padTimeDisplay-${padIdx}">
+            <span class="time-elapsed" id="padElapsed-${padIdx}">0:00:00</span>
+            <span class="time-divider" id="padTimeDivider-${padIdx}">/</span>
+            <span class="time-remaining" id="padRemaining-${padIdx}">0:00:00</span>
+          </div>
+        </div>
+        <div class="pad-footer">
+          <div class="pad-progress-bar">
+            <canvas class="pad-waveform-canvas" id="padWaveform-${padIdx}"></canvas>
+            <div class="pad-progress-fill" id="padProgress-${padIdx}" style="display: none;"></div>
+          </div>
+        </div>
+      `;
+
+      // イベントリスナーの登録
+      // イベントリスナーの登録: 誤作動防止のためシングルクリックは選択のみ
+      padEl.addEventListener('click', (e) => {
+        selectPad(padIdx, true);
+      });
+
+      // ダブルクリックで再生・停止の動作
+      padEl.addEventListener('dblclick', (e) => {
+        selectPad(padIdx, true);
+        
+        const pad = engine.pads[padIdx];
+        if (!pad || !pad.audioBuffer) {
+          // 空のパッドをダブルクリックした場合はファイル選択を開く
+          audioFileInput.click();
+          return;
+        }
+
+        if (engine.isPlaying(padIdx)) {
+          engine.stopPad(padIdx);
+          updatePadUI(padIdx);
+        } else {
+          triggerPlay(padIdx);
+        }
+      });
+
+      // ドラッグ＆ドロップの処理
+      padEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        padEl.classList.add('drag-over');
+      });
+
+      padEl.addEventListener('dragleave', () => {
+        padEl.classList.remove('drag-over');
+      });
+
+      padEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        padEl.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          await loadFileToPadIndex(padIdx, files[0]);
+        }
+      });
+
+      padResizeObserver.observe(padEl);
+      padGrid.appendChild(padEl);
+      drawWaveform(padIdx);
+    }
+    updatePadHeightClasses();
+  }
+
+  // 2. 状態描画の更新
+  function updatePadUI(index) {
+    const pad = engine.pads[index];
+    const padEl = padGrid.querySelector(`[data-index="${index}"]`);
+    if (!padEl || !pad) return;
+
+    const titleEl = document.getElementById(`padTitle-${index}`);
+    const commentEl = document.getElementById(`padComment-${index}`);
+    const keyEl = document.getElementById(`padKey-${index}`);
+    const elapsedEl = document.getElementById(`padElapsed-${index}`);
+    const remainingEl = document.getElementById(`padRemaining-${index}`);
+    const loopEl = document.getElementById(`indicatorLoop-${index}`);
+    const volEl = document.getElementById(`indicatorVolume-${index}`);
+
+    // クラスの制御（className一括上書きによる一瞬のスタイル崩れ・ガタつきを防止）
+    padEl.classList.toggle('selected', selectedPadIndex === index);
+    
+    const allThemes = [
+      'theme-cyan', 'theme-rose', 'theme-purple', 'theme-emerald', 'theme-yellow',
+      'theme-orange', 'theme-red', 'theme-blue', 'theme-green', 'theme-pink', 'theme-slate'
+    ];
+
+    if (pad.audioBuffer) {
+      padEl.classList.add('loaded');
+      padEl.classList.remove('empty');
+      
+      let hasThemeClass = false;
+      allThemes.forEach(t => {
+        if (t === pad.theme) {
+          padEl.classList.add(t);
+          hasThemeClass = true;
+        } else {
+          padEl.classList.remove(t);
+        }
+      });
+
+      if (!hasThemeClass && pad.theme && pad.theme.startsWith('#')) {
+        padEl.style.setProperty('--accent-color', pad.theme);
+        padEl.style.setProperty('--accent-glow', pad.theme + '58'); // ~35% opacity
+      } else {
+        padEl.style.removeProperty('--accent-color');
+        padEl.style.removeProperty('--accent-glow');
+      }
+      
+      titleEl.textContent = pad.name;
+      if (commentEl) commentEl.textContent = pad.comment || "";
+      
+      // 再生時間のフォーマット
+      const duration = pad.audioBuffer.duration;
+      const startOffset = pad.startOffset || 0.0;
+      
+      if (!engine.isPlaying(index)) {
+        elapsedEl.textContent = formatTime(startOffset);
+        remainingEl.textContent = formatTime(duration);
+      }
+
+      // 音量インジケータ表示
+      if (volEl) volEl.innerHTML = `<span class="vol-label">vol.</span>${Math.round(pad.volume * 100)}%`;
+
+      // インジケータ表示
+      if (loopEl) {
+        if (pad.loop) {
+          loopEl.style.display = 'inline-block';
+        } else {
+          loopEl.style.display = 'none';
+        }
+      }
+
+      // 再生モードの表示
+      const modeIndicator = document.getElementById(`indicatorMode-${index}`);
+      if (modeIndicator) {
+        let modeLabel = '';
+        switch (pad.playMode) {
+          case 'overlap': modeLabel = 'OL'; break;
+          case 'solo': modeLabel = 'SO'; break;
+          case 'retrigger': modeLabel = 'RT'; break;
+          case 'crossfade': modeLabel = 'CF'; break;
+          default: modeLabel = pad.playMode ? pad.playMode.substring(0, 2).toUpperCase() : '';
+        }
+        modeIndicator.textContent = modeLabel;
+        modeIndicator.style.display = 'inline-block';
+      }
+    } else {
+      padEl.classList.add('empty');
+      padEl.classList.remove('loaded');
+      allThemes.forEach(t => padEl.classList.remove(t));
+      padEl.style.removeProperty('--accent-color');
+      padEl.style.removeProperty('--accent-glow');
+      
+      titleEl.textContent = '';
+      if (commentEl) commentEl.textContent = "";
+      
+      if (!engine.isPlaying(index)) {
+        elapsedEl.textContent = '0:00:00';
+        remainingEl.textContent = '0:00:00';
+        remainingEl.style.color = '';
+      }
+      
+      if (loopEl) loopEl.style.display = 'none';
+      if (volEl) volEl.textContent = '';
+      const modeIndicator = document.getElementById(`indicatorMode-${index}`);
+      if (modeIndicator) modeIndicator.style.display = 'none';
+    }
+
+    // キー割り当て
+    keyEl.textContent = pad.key ? pad.key.toUpperCase() : '-';
+
+    // 再生状態クラスの適用
+    const isPlaying = engine.isPlaying(index);
+    const isFadingOut = engine.isFadingOut ? engine.isFadingOut(index) : false;
+    
+    padEl.classList.toggle('playing', isPlaying);
+    padEl.classList.toggle('fading-out', isFadingOut);
+    
+    if (!isPlaying) {
+      padEl.style.removeProperty('--fade-progress');
+      keyEl.style.color = '';
+      if (remainingEl) remainingEl.style.color = '';
+    }
+
+    // 音声波形の描画
+    drawWaveform(index);
+  }
+
+  // サイドバーを開く
+  function showSidebar(panelId) {
+    if (controlSidebar) controlSidebar.classList.remove('closed');
+    switchSidebarTab(panelId);
+  }
+
+  // サイドバーを閉じる（選択解除）
+  function closeSidebar() {
+    const prev = selectedPadIndex;
+    selectedPadIndex = null;
+    localStorage.removeItem('pondashi_selected_pad_index');
+    if (prev !== null) {
+      updatePadUI(prev);
+    }
+    if (controlSidebar) controlSidebar.classList.add('closed');
+  }
+
+  // 旧互換用
+  function clearSelection() {
+    closeSidebar();
+  }
+
+  // 3. パッドの選択
+  function selectPad(index, showModal = true) {
+    // 以前の選択解除
+    const prevSelected = selectedPadIndex;
+    selectedPadIndex = index;
+    localStorage.setItem('pondashi_selected_pad_index', index);
+    
+    if (prevSelected !== null) updatePadUI(prevSelected);
+    updatePadUI(index);
+
+    // パネルの値を現在のパッド設定に同期
+    const pad = engine.pads[index];
+    selectedPadTitle.textContent = `パッド ${index + 1} の設定`;
+    padNameInput.value = pad.name;
+    padCommentInput.value = pad.comment || "";
+    padVolumeInput.value = pad.volume;
+    padVolumeVal.textContent = Math.round(pad.volume * 100) + '%';
+    
+    // 再生開始位置の同期
+    if (pad.audioBuffer) {
+      padStartOffsetInput.max = pad.audioBuffer.duration.toFixed(1);
+      padStartOffsetInput.disabled = false;
+    } else {
+      padStartOffsetInput.max = "60";
+      padStartOffsetInput.disabled = true;
+    }
+    padStartOffsetInput.value = pad.startOffset || 0.0;
+    padStartOffsetVal.textContent = formatTime(pad.startOffset || 0.0);
+
+    padFadeInInput.value = pad.fadeIn;
+    padFadeInVal.textContent = pad.fadeIn + 's';
+    padFadeOutInput.value = pad.fadeOut;
+    padFadeOutVal.textContent = pad.fadeOut + 's';
+    padLoopToggle.checked = pad.loop;
+    padPlayMode.value = pad.playMode;
+    
+    // カラーテーマ選択状態の更新
+    updateColorPickerUI(pad.theme);
+
+    // 音声がロードされているかによるUI制御
+    // 基本的に空のパッドであっても名前やコメント、キーなどの事前設定を可能にするため、常に有効化する
+    padNameInput.disabled = false;
+    padCommentInput.disabled = false;
+    padVolumeInput.disabled = false;
+    padFadeInInput.disabled = false;
+    padFadeOutInput.disabled = false;
+    padLoopToggle.disabled = false;
+    padPlayMode.disabled = false;
+    btnClearPad.disabled = false; // 空パッドでも設定初期化（リセット）可能とする
+
+    // 右側設定サイドバーの表示・非表示制御
+    if (settingsContent && noPadSelectedMsg) {
+      settingsContent.style.display = 'flex';
+      noPadSelectedMsg.style.display = 'none';
+      // サイドバーが既に開いている場合のみパッド設定タブに切り替える（自動オープンしない）
+      if (controlSidebar && !controlSidebar.classList.contains('closed')) {
+        switchSidebarTab('padSettingsPanel');
+      }
+    }
+  }
+
+  // カラーピッカーUIの選択状態の更新
+  function updateColorPickerUI(selectedTheme) {
+    const options = colorPicker.querySelectorAll('.color-option');
+    const customLabel = colorPicker.querySelector('.color-option-custom');
+    const customInput = document.getElementById('customColorInput');
+    
+    let isPresetSelected = false;
+    options.forEach(opt => {
+      const themeName = 'theme-' + opt.dataset.color;
+      if (themeName === selectedTheme) {
+        opt.classList.add('selected');
+        isPresetSelected = true;
+      } else {
+        opt.classList.remove('selected');
+      }
+    });
+
+    if (customLabel) {
+      if (!isPresetSelected && selectedTheme && selectedTheme.startsWith('#')) {
+        customLabel.classList.add('selected');
+        customLabel.style.background = selectedTheme;
+        if (customInput) customInput.value = selectedTheme;
+      } else {
+        customLabel.classList.remove('selected');
+        customLabel.style.background = 'linear-gradient(135deg, red, yellow, lime, blue, magenta)';
+      }
+    }
+  }
+
+  // 4. ファイル読み込み処理
+  async function loadFileToPadIndex(index, file) {
+    setStatus(`パッド ${index + 1} にファイルを読み込んでいます...`, 'loading');
+    try {
+      waveformCache[index] = null; // キャッシュ破棄
+      const config = await engine.importFileToPad(index, file);
+      updatePadUI(index);
+      if (selectedPadIndex === index) {
+        selectPad(index); // 現在選択中ならパネルを更新
+      }
+      setStatus(`「${config.name}」をパッド ${index + 1} に登録しました。`, 'success');
+    } catch (err) {
+      setStatus(err.message, 'error');
+    }
+  }
+
+  // ステータス表示の変更
+  let statusTimeout = null;
+  function setStatus(text, type = 'success') {
+    if (!statusMessage) return;
+    
+    // iPad以外は進行状況を表示しない
+    const isIPad = document.body.classList.contains('is-ipad');
+    if (!isIPad) {
+      statusMessage.style.display = 'none';
+      return;
+    }
+
+    if (statusTimeout) {
+      clearTimeout(statusTimeout);
+      statusTimeout = null;
+    }
+
+    statusMessage.textContent = text;
+    statusMessage.style.display = 'inline-block';
+    statusMessage.style.opacity = '1';
+
+    if (type === 'error') {
+      statusMessage.style.color = '#ff4d6d';
+    } else if (type === 'loading') {
+      statusMessage.style.color = 'var(--color-yellow)';
+    } else {
+      statusMessage.style.color = 'var(--text-secondary)';
+    }
+
+    // loading (処理中) 以外の完了メッセージは3秒後に自動非表示化
+    if (type !== 'loading') {
+      statusTimeout = setTimeout(() => {
+        statusMessage.style.opacity = '0';
+        statusTimeout = setTimeout(() => {
+          statusMessage.style.display = 'none';
+        }, 500); // style.css の transition 0.5s と同期
+      }, 3000);
+    }
+  }
+
+  // 5. 音声の再生実行
+  function triggerPlay(index) {
+    // ユーザーインタラクション時にAudioContextを起動する
+    engine.initAudio();
+    
+    // アニメーションループが動いていなければ開始
+    if (!animFrameId) {
+      renderVisualizer();
+    }
+
+    const padEl = padGrid.querySelector(`[data-index="${index}"]`);
+    const progressFill = document.getElementById(`padProgress-${index}`);
+
+    const played = engine.playPad(index, (endedIndex) => {
+      // 再生完了時のUI更新
+      updatePadUI(endedIndex);
+      if (progressFill) progressFill.style.width = '0%';
+      drawWaveform(endedIndex, 0, false);
+      const endedPadEl = padGrid.querySelector(`[data-index="${endedIndex}"]`);
+      if (endedPadEl) {
+        endedPadEl.style.removeProperty('--fade-progress');
+      }
+    });
+
+    if (played) {
+      // 他のパッドがクロスフェードなどで停止した状態を即時反映するためにグリッド全体のUIを更新
+      const rows = parseInt(gridRowsInput.value) || 4;
+      const cols = parseInt(gridColsInput.value) || 4;
+      const totalPads = rows * cols;
+      const pageOffset = currentPage * PAGE_PAD_LIMIT;
+      for (let i = 0; i < totalPads; i++) {
+        updatePadUI(pageOffset + i);
+      }
+      
+      // プログレスバーと時間表示の更新タイマー
+      const pad = engine.pads[index];
+      const duration = pad.audioBuffer.duration;
+      const startTime = engine.audioCtx.currentTime;
+      const startOffset = pad.startOffset || 0.0;
+
+      function updateProgress() {
+        const currentPadEl = padGrid.querySelector(`[data-index="${index}"]`);
+        const progressFill = document.getElementById(`padProgress-${index}`);
+        const elapsedEl = document.getElementById(`padElapsed-${index}`);
+        const remainingEl = document.getElementById(`padRemaining-${index}`);
+
+        // 要素が存在しなければ（グリッド数変更で削除されたなど）処理を抜ける
+        if (!progressFill || !elapsedEl || !remainingEl || !currentPadEl) return;
+
+        if (!engine.isPlaying(index)) {
+          progressFill.style.width = '0%';
+          drawWaveform(index, 0, false);
+          currentPadEl.style.removeProperty('--fade-progress');
+          remainingEl.style.color = ''; // Reset color
+          // 停止時の表示リセット
+          elapsedEl.textContent = formatTime(startOffset);
+          remainingEl.textContent = formatTime(duration);
+          return;
+        }
+
+        // フェードアウト連動アニメーション
+        const isFading = engine.isFadingOut(index);
+        if (isFading) {
+          const fadeProgress = engine.getFadeOutProgress(index);
+          currentPadEl.style.setProperty('--fade-progress', fadeProgress);
+        } else {
+          currentPadEl.style.removeProperty('--fade-progress');
+        }
+
+        const timeInPlay = Math.max(0, engine.audioCtx.currentTime - startTime);
+        const cycle = duration - startOffset;
+        
+        let elapsed = startOffset;
+        let remaining = duration - startOffset;
+        
+        if (pad.loop) {
+          const relativeElapsed = timeInPlay % cycle;
+          elapsed = startOffset + relativeElapsed;
+          remaining = cycle - relativeElapsed;
+        } else {
+          elapsed = startOffset + timeInPlay;
+          remaining = Math.max(0, duration - elapsed);
+        }
+
+        // 経過時間フォーマット
+        elapsedEl.textContent = formatTime(elapsed);
+
+        // 残り時間・進捗バー表示
+        let percent;
+        if (isFading) {
+          const fadeProgress = engine.getFadeOutProgress(index);
+          const fadeRemaining = engine.getFadeOutTimeRemaining(index);
+          percent = fadeProgress * 100;
+          remainingEl.textContent = `FADE: ${fadeRemaining.toFixed(1)}s`;
+          remainingEl.style.color = 'var(--color-rose)'; // Set to rose color during fadeout
+        } else {
+          percent = (elapsed / duration) * 100;
+          remainingEl.textContent = `-${formatTime(remaining)}`;
+          remainingEl.style.color = ''; // Reset to default color
+        }
+
+        if (percent > 100) percent = 100;
+        progressFill.style.width = `${percent}%`;
+        drawWaveform(index, percent, true);
+
+        if (engine.isPlaying(index)) {
+          requestAnimationFrame(updateProgress);
+        } else {
+          progressFill.style.width = '0%';
+          drawWaveform(index, 0, false);
+          currentPadEl.style.removeProperty('--fade-progress');
+          remainingEl.style.color = '';
+        }
+      }
+
+      requestAnimationFrame(updateProgress);
+    }
+  }
+
+  // 6. UI設定値の保存ハンドラ
+  async function saveSelectedPadSettings() {
+    if (selectedPadIndex === null) return;
+    
+    const pad = engine.pads[selectedPadIndex];
+    pad.name = padNameInput.value;
+    pad.comment = padCommentInput.value;
+    pad.volume = parseFloat(padVolumeInput.value);
+    pad.startOffset = parseFloat(padStartOffsetInput.value);
+    pad.fadeIn = parseFloat(padFadeInInput.value);
+    pad.fadeOut = parseFloat(padFadeOutInput.value);
+    pad.loop = padLoopToggle.checked;
+    pad.playMode = padPlayMode.value;
+
+    await engine.savePad(selectedPadIndex, pad);
+    updatePadUI(selectedPadIndex);
+  }
+
+  // 7. 各種スライダー・インプットのイベントリスナー
+  padNameInput.addEventListener('input', () => {
+    saveSelectedPadSettings();
+  });
+
+  padCommentInput.addEventListener('input', () => {
+    saveSelectedPadSettings();
+  });
+
+  padVolumeInput.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    padVolumeVal.textContent = Math.round(val * 100) + '%';
+    if (selectedPadIndex !== null) {
+      engine.setPadVolume(selectedPadIndex, val);
+    }
+    saveSelectedPadSettings();
+  });
+
+  padStartOffsetInput.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    padStartOffsetVal.textContent = formatTime(val);
+    saveSelectedPadSettings();
+  });
+
+  padFadeInInput.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    padFadeInVal.textContent = val.toFixed(1) + 's';
+    saveSelectedPadSettings();
+  });
+
+  padFadeOutInput.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    padFadeOutVal.textContent = val.toFixed(1) + 's';
+    saveSelectedPadSettings();
+  });
+
+  padLoopToggle.addEventListener('change', () => {
+    saveSelectedPadSettings();
+  });
+
+  padPlayMode.addEventListener('change', () => {
+    saveSelectedPadSettings();
+  });
+
+  // 音声ファイルの選択読み込み
+  const btnSelectFile = document.getElementById('btnSelectFile');
+  if (btnSelectFile) {
+    btnSelectFile.addEventListener('click', (e) => {
+      e.preventDefault();
+      audioFileInput.click();
+    });
+  }
+
+  audioFileInput.addEventListener('change', async (e) => {
+    if (selectedPadIndex === null) return;
+    const files = e.target.files;
+    if (files.length > 0) {
+      await loadFileToPadIndex(selectedPadIndex, files[0]);
+    }
+    audioFileInput.value = ''; // ファイル入力をリセット
+  });
+
+  // パッドのクリア
+  btnClearPad.addEventListener('click', async () => {
+    if (selectedPadIndex === null) return;
+    if (confirm(`パッド ${selectedPadIndex + 1} の音声データを削除しますか？`)) {
+      setStatus(`パッド ${selectedPadIndex + 1} をクリアしました。`);
+      waveformCache[selectedPadIndex] = null; // キャッシュクリア
+      const defaultPad = await engine.clearPad(selectedPadIndex);
+      updatePadUI(selectedPadIndex);
+      selectPad(selectedPadIndex);
+    }
+  });
+
+  // キーの録音割り当て開始
+  btnRecordKey.addEventListener('click', () => {
+    if (selectedPadIndex === null) return;
+    isRecordingKey = true;
+    btnRecordKey.textContent = 'キー入力待ち...';
+    btnRecordKey.classList.add('recording');
+  });
+
+  // カラーテーマの変更
+  colorPicker.addEventListener('click', (e) => {
+    const option = e.target.closest('.color-option');
+    if (!option || selectedPadIndex === null) return;
+
+    const themeName = 'theme-' + option.dataset.color;
+    engine.pads[selectedPadIndex].theme = themeName;
+    
+    updateColorPickerUI(themeName);
+    saveSelectedPadSettings();
+  });
+
+  // カスタムカラー入力の変更監視
+  const customColorInput = document.getElementById('customColorInput');
+  if (customColorInput) {
+    const handleCustomColor = (e) => {
+      if (selectedPadIndex === null) return;
+      const customColor = e.target.value;
+      engine.pads[selectedPadIndex].theme = customColor;
+      updateColorPickerUI(customColor);
+      saveSelectedPadSettings();
+    };
+    customColorInput.addEventListener('input', handleCustomColor);
+    customColorInput.addEventListener('change', handleCustomColor);
+  }
+
+  // 8. キーボードショートカットの監視
+  window.addEventListener('keydown', (e) => {
+    // テキスト・数値入力中のみショートカットを無視（スライダー等の操作中は無視しない）
+    const activeEl = document.activeElement;
+    const isTextInput = activeEl && (
+      activeEl.tagName === 'TEXTAREA' ||
+      (activeEl.tagName === 'INPUT' && 
+       (activeEl.type === 'text' || activeEl.type === 'password' || 
+        activeEl.type === 'email' || activeEl.type === 'number' || 
+        activeEl.type === 'search' || activeEl.type === 'tel' || 
+        activeEl.type === 'url'))
+    );
+    if (isTextInput && activeEl !== audioFileInput && !isRecordingKey) {
+      return;
+    }
+
+    const pressedKey = e.key.toLowerCase();
+
+    // キー割り当てモード時の処理
+    if (isRecordingKey && selectedPadIndex !== null) {
+      e.preventDefault();
+      
+      // Escapeでキャンセル
+      if (pressedKey === 'escape') {
+        isRecordingKey = false;
+        btnRecordKey.textContent = 'キーを変更';
+        btnRecordKey.classList.remove('recording');
+        setStatus('キーの変更をキャンセルしました。');
+        return;
+      }
+
+      // 特殊キーや競合防止の制限
+      if (pressedKey === ' ' || pressedKey === 'enter') {
+        setStatus('このキーは使用できません。', 'error');
+        return;
+      }
+
+      // 重複チェック
+      const duplicateIndex = engine.pads.findIndex((p, idx) => idx !== selectedPadIndex && p.key === pressedKey);
+      if (duplicateIndex !== -1) {
+        setStatus(`キー「${pressedKey.toUpperCase()}」はすでにパッド ${duplicateIndex + 1} に割り当てられています。`, 'error');
+        return;
+      }
+
+      // キーの割り当て
+      engine.pads[selectedPadIndex].key = pressedKey;
+      saveSelectedPadSettings();
+      
+      isRecordingKey = false;
+      btnRecordKey.textContent = 'キーを変更';
+      btnRecordKey.classList.remove('recording');
+      setStatus(`パッド ${selectedPadIndex + 1} にキー「${pressedKey.toUpperCase()}」を割り当てました。`);
+      return;
+    }
+
+    // スペースキーは Panic (全音停止) にマッピング
+    if (e.key === ' ') {
+      e.preventDefault();
+      triggerPanic();
+      return;
+    }
+
+    // パッドに一致するキーがあれば再生・停止トグル (ただし現在表示中のグリッド内のみ)
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    const padIdx = engine.pads.findIndex(p => p.key === pressedKey);
+    if (padIdx !== -1 && padIdx >= pageOffset && padIdx < pageOffset + totalPads) {
+      e.preventDefault();
+      if (engine.isPlaying(padIdx)) {
+        engine.stopPad(padIdx);
+        updatePadUI(padIdx);
+      } else {
+        triggerPlay(padIdx);
+      }
+    }
+  });
+
+  // 9. マスター音量の調整
+  masterVolume.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    masterVolumeVal.textContent = Math.round(val * 100) + '%';
+    engine.setMasterVolume(val);
+    localStorage.setItem('pondashi_master_volume', val);
+  });
+
+  // 表示サイズ調整のハンドラ
+  titleFontSize.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    titleFontSizeVal.textContent = val.toString() + 'pt';
+    const currentValComment = parseFloat(commentFontSize.value) || 12;
+    const currentValTime = parseFloat(timeFontSize.value) || 13;
+    applyDynamicFontSizes(val, currentValComment, currentValTime);
+    updatePadHeightClasses();
+    localStorage.setItem('pondashi_title_size', val);
+  });
+
+  commentFontSize.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    commentFontSizeVal.textContent = val.toString() + 'pt';
+    const currentValTitle = parseFloat(titleFontSize.value) || 14;
+    const currentValTime = parseFloat(timeFontSize.value) || 13;
+    applyDynamicFontSizes(currentValTitle, val, currentValTime);
+    updatePadHeightClasses();
+    localStorage.setItem('pondashi_comment_size', val);
+  });
+
+  timeFontSize.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    timeFontSizeVal.textContent = val.toString() + 'pt';
+    const currentValTitle = parseFloat(titleFontSize.value) || 14;
+    const currentValComment = parseFloat(commentFontSize.value) || 12;
+    applyDynamicFontSizes(currentValTitle, currentValComment, val);
+    updatePadHeightClasses();
+    localStorage.setItem('pondashi_time_size', val);
+  });
+
+  // 10. パニック（一括停止）
+  function triggerPanic() {
+    engine.stopAll();
+    // UIを更新
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = 0; i < totalPads; i++) {
+      const padIdx = pageOffset + i;
+      updatePadUI(padIdx);
+      const progressFill = document.getElementById(`padProgress-${padIdx}`);
+      if (progressFill) progressFill.style.width = '0%';
+    }
+    setStatus('すべての音声を停止しました。');
+  }
+
+  btnPanic.addEventListener('click', () => {
+    triggerPanic();
+  });
+
+  // グリッドサイズ変更のハンドラ
+  function updateGridSize() {
+    const rows = parseInt(gridRowsInput.value) || 3;
+    const cols = parseInt(gridColsInput.value) || 4;
+    
+    // 値の範囲制限 (縦:1〜3, 横:1〜4)
+    const validRows = Math.max(1, Math.min(3, rows));
+    const validCols = Math.max(1, Math.min(4, cols));
+    
+    gridRowsInput.value = validRows;
+    gridColsInput.value = validCols;
+
+    // ローカルストレージに保存 (ページ個別)
+    localStorage.setItem(`pondashi_grid_rows_page_${currentPage}`, validRows);
+    localStorage.setItem(`pondashi_grid_cols_page_${currentPage}`, validCols);
+
+    // グリッドを再生成
+    createPadElements();
+
+    // 再生成したパッドのUIを同期
+    const totalPads = validRows * validCols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = 0; i < totalPads; i++) {
+      updatePadUI(pageOffset + i);
+    }
+    
+    // 選択中のパッドが現在のページの範囲外になった場合、選択をクリア
+    if (selectedPadIndex !== null && (selectedPadIndex < pageOffset || selectedPadIndex >= pageOffset + totalPads)) {
+      clearSelection();
+    } else if (selectedPadIndex !== null) {
+      selectPad(selectedPadIndex, true); // 選択中パッドがあれば再選択してハイライトを適用
+    }
+  }
+
+  gridRowsInput.addEventListener('change', updateGridSize);
+  gridColsInput.addEventListener('change', updateGridSize);
+
+  // 11. アナライザーの描画ループ
+  // ビジュアル用のバーを生成
+  const visBarCount = 8;
+  const visBars = [];
+  if (visualizer) {
+    visualizer.innerHTML = '';
+    for (let i = 0; i < visBarCount; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'vis-bar';
+      visualizer.appendChild(bar);
+      visBars.push(bar);
+    }
+  }
+
+  function renderVisualizer() {
+    if (!engine.audioCtx || visBars.length === 0) return;
+
+    const data = engine.getVisualData();
+    if (data.length > 0) {
+      // 周波数データを各バーに反映
+      for (let i = 0; i < visBarCount; i++) {
+        // 音源周波数のマッピング
+        const val = data[i * 2] || 0; 
+        const scaleY = Math.max(0.1, val / 255);
+        visBars[i].style.transform = `scaleY(${scaleY * 15})`; // スケールの強調表示
+      }
+    } else {
+      // 停止時はデフォルトサイズ
+      visBars.forEach(bar => {
+        bar.style.transform = 'scaleY(1)';
+      });
+    }
+
+    animFrameId = requestAnimationFrame(renderVisualizer);
+  }
+
+  // 12. アプリケーション of 初期起動ロード
+  // グリッドサイズ設定の読み込みと適用（縦最大3、横最大4に制限、ページ個別）
+  const savedRows = Math.min(3, parseInt(
+    localStorage.getItem(`pondashi_grid_rows_page_${currentPage}`) || 
+    localStorage.getItem('pondashi_grid_rows') || 
+    '3'
+  ));
+  const savedCols = Math.min(4, parseInt(
+    localStorage.getItem(`pondashi_grid_cols_page_${currentPage}`) || 
+    localStorage.getItem('pondashi_grid_cols') || 
+    '4'
+  ));
+  gridRowsInput.value = savedRows;
+  gridColsInput.value = savedCols;
+
+  createPadElements();
+
+  // ページボタン名ロード
+  const pageNames = JSON.parse(localStorage.getItem('pondashi_page_names') || '["ページ 1", "ページ 2", "ページ 3"]');
+  pageSelector.querySelectorAll('.btn-page').forEach((b, idx) => {
+    b.textContent = pageNames[idx] || `ページ ${idx + 1}`;
+  });
+
+  // ページセレクターの初期アクティブ設定
+  pageSelector.querySelectorAll('.btn-page').forEach(b => {
+    if (parseInt(b.dataset.page) === currentPage) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
+  // ページ選択イベントリスナーの登録
+  pageSelector.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-page');
+    if (!btn) return;
+    
+    // インプット編集中のクリックは無視
+    if (btn.querySelector('input')) return;
+    
+    const page = parseInt(btn.dataset.page);
+    if (page === currentPage) return;
+    
+    currentPage = page;
+    localStorage.setItem('pondashi_current_page', currentPage);
+
+    // ページの個別のグリッドサイズ設定を読み込み
+    const pageRows = Math.min(3, parseInt(
+      localStorage.getItem(`pondashi_grid_rows_page_${currentPage}`) || 
+      localStorage.getItem('pondashi_grid_rows') || 
+      '3'
+    ));
+    const pageCols = Math.min(4, parseInt(
+      localStorage.getItem(`pondashi_grid_cols_page_${currentPage}`) || 
+      localStorage.getItem('pondashi_grid_cols') || 
+      '4'
+    ));
+    gridRowsInput.value = pageRows;
+    gridColsInput.value = pageCols;
+    
+    // ボタンのactive表示切り替え
+    pageSelector.querySelectorAll('.btn-page').forEach(b => {
+      if (parseInt(b.dataset.page) === currentPage) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+    
+    // グリッドを再生成してUI同期
+    createPadElements();
+    
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = 0; i < totalPads; i++) {
+      updatePadUI(pageOffset + i);
+    }
+    
+    // 選択中のパッドが現在のページ範囲外なら選択クリア
+    if (selectedPadIndex !== null) {
+      if (selectedPadIndex < pageOffset || selectedPadIndex >= pageOffset + totalPads) {
+        clearSelection();
+      } else {
+        selectPad(selectedPadIndex, true);
+      }
+    }
+  });
+
+  // ページ名のダブルクリック編集
+  pageSelector.addEventListener('dblclick', (e) => {
+    const btn = e.target.closest('.btn-page');
+    if (!btn) return;
+    if (btn.querySelector('input')) return;
+    
+    const pageIndex = parseInt(btn.dataset.page);
+    const currentName = btn.textContent.trim();
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentName;
+    input.classList.add('page-edit-input');
+    input.style.width = '100%';
+    input.style.height = '100%';
+    input.style.border = 'none';
+    input.style.background = 'transparent';
+    input.style.font = 'inherit';
+    input.style.textAlign = 'center';
+    input.style.padding = '0';
+    input.style.margin = '0';
+    input.style.outline = 'none';
+    
+    btn.textContent = '';
+    btn.appendChild(input);
+    input.focus();
+    input.select();
+    
+    const savePageName = () => {
+      const newName = input.value.trim() || `ページ ${pageIndex + 1}`;
+      if (input.parentNode === btn) {
+        btn.removeChild(input);
+      }
+      btn.textContent = newName;
+      
+      const pageNames = JSON.parse(localStorage.getItem('pondashi_page_names') || '["ページ 1", "ページ 2", "ページ 3"]');
+      pageNames[pageIndex] = newName;
+      localStorage.setItem('pondashi_page_names', JSON.stringify(pageNames));
+    };
+    
+    input.addEventListener('keydown', (evt) => {
+      if (evt.key === 'Enter') {
+        savePageName();
+      } else if (evt.key === 'Escape') {
+        if (input.parentNode === btn) {
+          btn.removeChild(input);
+        }
+        btn.textContent = currentName;
+      }
+    });
+    
+    input.addEventListener('blur', () => {
+      savePageName();
+    });
+  });
+
+  // ヘルプモーダルのイベントリスナー登録
+  helpBtn.addEventListener('click', () => {
+    helpModal.showModal();
+  });
+  closeHelpBtn.addEventListener('click', () => {
+    helpModal.close();
+  });
+  helpModal.addEventListener('click', (e) => {
+    if (e.target === helpModal) {
+      helpModal.close();
+    }
+  });
+
+  // プリセットのエクスポート
+  btnExportPreset.addEventListener('click', async () => {
+    setStatus('プリセットを書き出しています...', 'loading');
+    try {
+      const jsonStr = await engine.exportPreset();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const filename = `pondashi_preset_${dateStr}.json`;
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // ダウンロード完了を待つため、オブジェクトURLの破棄を遅延させる
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      
+      // iPad Safari (file://) などのダウンロード機能がブロックされる環境への対策
+      if (window.location.protocol === 'file:') {
+        // Blobを直接別タブで開く。iOS Safariではプレビュー表示になり、そこから「ファイルに保存」ができる。
+        window.open(url, '_blank');
+      }
+      
+      setStatus('プリセットのエクスポートが完了しました。');
+    } catch (err) {
+      console.error(err);
+      setStatus('プリセットのエクスポートに失敗しました。', 'error');
+    }
+  });
+
+  // プリセットのインポート
+  btnImportPreset.addEventListener('click', () => {
+    presetFileInput.click();
+  });
+
+  presetFileInput.addEventListener('change', async (e) => {
+    const files = e.target.files;
+    if (files.length === 0) return;
+    
+    const file = files[0];
+    if (!confirm('プリセットをインポートすると、現在のすべてのパッド設定が上書きされます。よろしいですか？')) {
+      presetFileInput.value = '';
+      return;
+    }
+    
+    setStatus('プリセットを読み込んでいます...', 'loading');
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        await engine.importPreset(event.target.result);
+        
+        // 波形キャッシュのクリア
+        for (let i = 0; i < MAX_PADS; i++) {
+          waveformCache[i] = null;
+        }
+        
+        // 全パッドの描画を更新
+        const rows = parseInt(gridRowsInput.value) || 4;
+        const cols = parseInt(gridColsInput.value) || 4;
+        const totalPads = rows * cols;
+        const pageOffset = currentPage * PAGE_PAD_LIMIT;
+        for (let i = 0; i < totalPads; i++) {
+          updatePadUI(pageOffset + i);
+        }
+        
+        // 選択をリセット
+        clearSelection();
+        
+        setStatus('プリセットのインポートが完了しました。');
+      } catch (err) {
+        console.error(err);
+        setStatus('プリセットのインポートに失敗しました。ファイルが壊れているか、形式が違います。', 'error');
+      } finally {
+        presetFileInput.value = '';
+      }
+    };
+    
+    reader.onerror = () => {
+      setStatus('ファイルの読み込みに失敗しました。', 'error');
+      presetFileInput.value = '';
+    };
+    
+    reader.readAsText(file);
+  });
+
+  
+  // マスター音量の読み込みと適用
+  const savedMasterVolume = localStorage.getItem('pondashi_master_volume') || '0.8';
+  masterVolume.value = savedMasterVolume;
+  masterVolumeVal.textContent = Math.round(parseFloat(savedMasterVolume) * 100) + '%';
+  engine.setMasterVolume(parseFloat(savedMasterVolume));
+
+  // 表示サイズの設定の読み込みと適用 (remからptへのフォールバック対応)
+  let savedTitleSize = localStorage.getItem('pondashi_title_size') || '14';
+  if (parseFloat(savedTitleSize) < 5) {
+    savedTitleSize = '14'; // 以前のrem値の場合はデフォルトptにフォールバック
+  }
+  titleFontSize.value = savedTitleSize;
+  titleFontSizeVal.textContent = savedTitleSize + 'pt';
+
+  let savedCommentSize = localStorage.getItem('pondashi_comment_size') || '12';
+  if (parseFloat(savedCommentSize) < 5) {
+    savedCommentSize = '12';
+  }
+  commentFontSize.value = savedCommentSize;
+  commentFontSizeVal.textContent = savedCommentSize + 'pt';
+
+  let savedTimeSize = localStorage.getItem('pondashi_time_size') || '13';
+  if (parseFloat(savedTimeSize) < 5) {
+    savedTimeSize = '13';
+  }
+  timeFontSize.value = savedTimeSize;
+  timeFontSizeVal.textContent = savedTimeSize + 'pt';
+
+  // 動的スタイルタグを用いて文字サイズを確実に適用
+  applyDynamicFontSizes(parseFloat(savedTitleSize), parseFloat(savedCommentSize), parseFloat(savedTimeSize));
+
+  // テーマの設定の読み込みと適用
+  const themeSelector = document.getElementById('themeSelector');
+  const savedTheme = localStorage.getItem('pondashi_theme') || 'dark';
+  themeSelector.value = savedTheme;
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+  } else {
+    document.body.classList.remove('light-theme');
+  }
+
+  themeSelector.addEventListener('change', () => {
+    const selectedTheme = themeSelector.value;
+    localStorage.setItem('pondashi_theme', selectedTheme);
+    if (selectedTheme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    // テーマ切り替え時に全パッドの波形を再描画
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = 0; i < totalPads; i++) {
+      drawWaveform(pageOffset + i);
+    }
+  });
+
+  setStatus('IndexedDB からオーディオをロードしています...', 'loading');
+  
+  try {
+    // オーディオコンテキストはダミー生成のみしておき、後で再初期化
+    await engine.loadAllPads();
+    
+    // 全パッドの描画を更新
+    const rows = parseInt(gridRowsInput.value) || 4;
+    const cols = parseInt(gridColsInput.value) || 4;
+    const totalPads = rows * cols;
+    const pageOffset = currentPage * PAGE_PAD_LIMIT;
+    for (let i = 0; i < totalPads; i++) {
+      updatePadUI(pageOffset + i);
+    }
+
+    // 最後に選択されていたパッドがあれば復元する
+    const savedSelectedPad = localStorage.getItem('pondashi_selected_pad_index');
+    if (savedSelectedPad !== null) {
+      const savedIndex = parseInt(savedSelectedPad);
+      if (savedIndex >= 0 && savedIndex < MAX_PADS) {
+        const targetPage = Math.floor(savedIndex / PAGE_PAD_LIMIT);
+        if (targetPage !== currentPage && targetPage < 3) {
+          currentPage = targetPage;
+          localStorage.setItem('pondashi_current_page', currentPage);
+          
+          // ページボタンのアクティブ切り替え
+          pageSelector.querySelectorAll('.btn-page').forEach(b => {
+            if (parseInt(b.dataset.page) === currentPage) {
+              b.classList.add('active');
+            } else {
+              b.classList.remove('active');
+            }
+          });
+          
+          // グリッドを再生成
+          createPadElements();
+          
+          // 新しいページのパッドUIを同期
+          const newPageOffset = currentPage * PAGE_PAD_LIMIT;
+          for (let i = 0; i < totalPads; i++) {
+            updatePadUI(newPageOffset + i);
+          }
+        }
+        
+        // パッドを選択 (起動時に以前選択していたパッドの設定をサイドバーに表示する)
+        selectPad(savedIndex, true);
+      } else {
+        clearSelection();
+      }
+    } else {
+      clearSelection();
+    }
+
+    // パッドグリッドの背景クリック時の選択解除
+    if (padGrid) {
+      padGrid.addEventListener('click', (e) => {
+        if (e.target === padGrid) {
+          clearSelection();
+        }
+      });
+    }
+
+    // パッドスケールの初期設定
+    document.documentElement.style.setProperty('--pad-scale', 1.0);
+    
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) {
+      setStatus('アプリケーションが起動しました。空のパッドをダブルタップして音声ファイルを選択してください。');
+    } else {
+      setStatus('アプリケーションが起動しました。音声をドラッグ＆ドロップしてロードしてください。');
+    }
+  } catch (err) {
+    console.error('Error loading pads:', err);
+    setStatus('データのロードに失敗しました。ブラウザをリロードしてください。', 'error');
+  }
+});
+
+// --- 音声波形描画エンジン ---
+const waveformCache = {};
+
+function generateWaveformData(audioBuffer, numBars = 40) {
+  const channelData = audioBuffer.getChannelData(0);
+  const blockSize = Math.floor(channelData.length / numBars);
+  const waveform = [];
+  
+  for (let i = 0; i < numBars; i++) {
+    const start = i * blockSize;
+    let sum = 0;
+    let count = 0;
+    for (let j = 0; j < blockSize; j++) {
+      const idx = start + j;
+      if (idx >= channelData.length) break;
+      sum += Math.abs(channelData[idx]);
+      count++;
+    }
+    const avg = count > 0 ? sum / count : 0;
+    waveform.push(avg);
+  }
+  
+  const peak = Math.max(...waveform);
+  if (peak > 0) {
+    // 正規化した平均値を 1.3 乗してダイナミックレンジ（高低差）を強調し、
+    // 波形が見えなくならないよう最低限の高さを 0.12 にクランプします。
+    return waveform.map(v => {
+      const norm = v / peak;
+      return Math.max(0.12, Math.pow(norm, 1.3));
+    });
+  }
+  return waveform.map(() => 0.12);
+}
+
+function getDummyWaveform(numBars = 40, seed = 0) {
+  const waveform = [];
+  for (let i = 0; i < numBars; i++) {
+    const t = i / (numBars - 1);
+    const base = Math.sin(t * Math.PI) * 0.7;
+    const noise = Math.abs(Math.sin(t * Math.PI * 5 + seed)) * 0.25;
+    waveform.push(Math.max(0.15, base + noise));
+  }
+  return waveform;
+}
+
+function drawWaveform(padIdx, progressPercent = 0, isPlaying = false) {
+  const canvas = document.getElementById(`padWaveform-${padIdx}`);
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  
+  // サイズが 0 の場合は描画をスキップ
+  if (rect.width === 0 || rect.height === 0) return;
+  
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+  
+  const pad = engine.pads[padIdx];
+  let waveform = waveformCache[padIdx];
+  
+  if (!waveform) {
+    if (pad && pad.audioBuffer) {
+      waveform = generateWaveformData(pad.audioBuffer, 35);
+      waveformCache[padIdx] = waveform;
+    } else if (pad && (pad.isVideo || pad.isImage)) {
+      waveform = getDummyWaveform(35, padIdx);
+      waveformCache[padIdx] = waveform;
+    } else {
+      waveform = Array(35).fill(0.08);
+    }
+  }
+  
+  const numBars = waveform.length;
+  const gap = 2;
+  const barWidth = (w - (numBars - 1) * gap) / numBars;
+  const isLightTheme = document.body.classList.contains('light-theme');
+  
+  let activeColor = isLightTheme ? '#0284c7' : '#00f2fe';
+  if (pad && pad.theme) {
+    const colorMap = {
+      'theme-cyan': isLightTheme ? '#0284c7' : '#00f2fe',
+      'theme-rose': isLightTheme ? '#e11d48' : '#ff007f',
+      'theme-purple': isLightTheme ? '#7c3aed' : '#a855f7',
+      'theme-emerald': isLightTheme ? '#059669' : '#10b981',
+      'theme-yellow': isLightTheme ? '#d97706' : '#eab308',
+      'theme-orange': isLightTheme ? '#ea580c' : '#f97316',
+      'theme-red': isLightTheme ? '#dc2626' : '#ef4444',
+      'theme-blue': isLightTheme ? '#2563eb' : '#3b82f6',
+      'theme-green': isLightTheme ? '#16a34a' : '#22c55e',
+      'theme-pink': isLightTheme ? '#db2777' : '#ec4899',
+      'theme-slate': isLightTheme ? '#475569' : '#64748b'
+    };
+    activeColor = colorMap[pad.theme] || (pad.theme.startsWith('#') ? pad.theme : activeColor);
+  }
+  
+  const inactiveColor = isLightTheme ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.18)';
+  let fadeProgress = 1.0;
+  if (isPlaying) {
+    fadeProgress = engine.getFadeOutProgress ? engine.getFadeOutProgress(padIdx) : 1.0;
+  }
+  
+  for (let i = 0; i < numBars; i++) {
+    const val = waveform[i];
+    const barHeight = val * h * 0.8;
+    const x = i * (barWidth + gap);
+    const y = (h - barHeight) / 2;
+    
+    const barPercent = (i / (numBars - 1)) * 100;
+    
+    if (isPlaying && barPercent <= progressPercent) {
+      ctx.fillStyle = activeColor;
+      if (fadeProgress < 1.0) {
+        ctx.globalAlpha = fadeProgress;
+      }
+    } else {
+      ctx.fillStyle = inactiveColor;
+      ctx.globalAlpha = 1.0;
+    }
+    
+    drawRoundedRect(ctx, x, y, barWidth, barHeight, 1.5);
+  }
+  ctx.globalAlpha = 1.0;
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  if (width <= 0 || height <= 0) return;
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+</script>
+</body>
+</html>

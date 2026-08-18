@@ -1,0 +1,10 @@
+{
+  "name": "さいせい君 v40",
+  "short_name": "さいせい君40",
+  "description": "ポン出しシステム（Mac版のレイアウト・操作を土台にした版）",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#00f2fe",
+  "orientation": "any"
+}
