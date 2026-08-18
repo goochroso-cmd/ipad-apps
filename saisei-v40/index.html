@@ -150,6 +150,40 @@ body.is-electron .app-title-container {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* iPad版のみ使用: 起動直後の曲データ展開中に画面全体を覆い、操作を止める */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(10, 12, 18, 0.94);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+.loading-overlay.active {
+  display: flex;
+}
+.loading-overlay-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #ffd60a;
+  letter-spacing: 0.03em;
+  margin-bottom: 14px;
+}
+.loading-overlay-sub {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #f3f4f6;
+}
+.loading-overlay-progress {
+  margin-top: 10px;
+  font-size: 1.05rem;
+  color: #9ca3af;
+}
+
 .app-instructions {
   display: flex;
   align-items: center;
@@ -2301,11 +2335,18 @@ body.light-theme .status-text {
 </head>
 <body>
 
+  <!-- iPad版のみ: 起動直後の曲データ展開中に表示する全画面ブロック -->
+  <div id="loadingOverlay" class="loading-overlay" role="alert" aria-live="assertive">
+    <div class="loading-overlay-title">曲データ読み込み再配列中…</div>
+    <div class="loading-overlay-sub">操作せずにそのままお待ちください</div>
+    <div class="loading-overlay-progress" id="loadingOverlayProgress"></div>
+  </div>
+
   <!-- ヘッダーエリア -->
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 6px 14px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); white-space: nowrap; margin-left: 8px;">2026-08-18 v40（Mac版土台）</span>
+      <span class="app-version" id="appVersion" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 6px 14px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); white-space: nowrap; margin-left: 8px;">2026-08-18 v40.1（9個化+復元中ブロック）</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -3435,6 +3476,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.classList.add('is-ipad');
   }
 
+  // iPad版のみ、1ページの横方向の上限を4→3に制限（3×3=9個が上限）
+  // ※ Mac/Windows版は別ファイルなのでここでは触らない。isIPadがfalseなら従来通り4のまま。
+  const gridColsCap = isIPad ? 3 : 4;
+
   // Storage Persistence Request (PWA永続化リクエスト)
   if (navigator.storage && navigator.storage.persist) {
     try {
@@ -3563,10 +3608,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 未デコードの音声（audioData があるが audioBuffer がないもの）をすべてデコードする
     setStatus('以前登録された音声を復元中...', 'loading');
     let decodedCount = 0;
-    
+
+    // iPad版のみ: 展開中に他のパッドを操作されるとメモリを圧迫し展開が
+    // 完了しなくなる可能性があるため、展開すべき曲が1つでもあれば全画面をブロックする
+    const pendingIndexes = [];
     for (let i = 0; i < engine.pads.length; i++) {
-      const pad = engine.pads[i];
-      if (pad.audioData && !pad.audioBuffer) {
+      if (engine.pads[i].audioData && !engine.pads[i].audioBuffer) {
+        pendingIndexes.push(i);
+      }
+    }
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingOverlayProgress = document.getElementById('loadingOverlayProgress');
+    const showOverlay = isIPad && pendingIndexes.length > 0 && loadingOverlay;
+    if (showOverlay) {
+      loadingOverlay.classList.add('active');
+    }
+
+    try {
+      for (let n = 0; n < pendingIndexes.length; n++) {
+        const i = pendingIndexes[n];
+        const pad = engine.pads[i];
+        if (showOverlay && loadingOverlayProgress) {
+          loadingOverlayProgress.textContent = `${n + 1} / ${pendingIndexes.length} 曲を展開中…`;
+        }
         try {
           const bufferCopy = pad.audioData.slice(0);
           pad.audioBuffer = await engine.decodeAudio(bufferCopy);
@@ -3574,6 +3638,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {
           console.error(`パッド ${i} のデコードに失敗しました:`, e);
         }
+      }
+    } finally {
+      if (showOverlay) {
+        loadingOverlay.classList.remove('active');
       }
     }
 
@@ -3684,6 +3752,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // グリッドサイズ入力
   const gridRowsInput = document.getElementById('gridRows');
   const gridColsInput = document.getElementById('gridCols');
+  // iPad版のみ、横入力欄のスピナー上限も3に合わせる（Mac版は別ファイルなので影響なし）
+  gridColsInput.max = String(gridColsCap);
 
   // 表示サイズ調整
   const titleFontSize = document.getElementById('titleFontSize');
@@ -4601,9 +4671,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rows = parseInt(gridRowsInput.value) || 3;
     const cols = parseInt(gridColsInput.value) || 4;
     
-    // 値の範囲制限 (縦:1〜3, 横:1〜4)
+    // 値の範囲制限 (縦:1〜3, 横:1〜gridColsCap ※iPad版は3, それ以外は4)
     const validRows = Math.max(1, Math.min(3, rows));
-    const validCols = Math.max(1, Math.min(4, cols));
+    const validCols = Math.max(1, Math.min(gridColsCap, cols));
     
     gridRowsInput.value = validRows;
     gridColsInput.value = validCols;
@@ -4676,9 +4746,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     localStorage.getItem('pondashi_grid_rows') || 
     '3'
   ));
-  const savedCols = Math.min(4, parseInt(
-    localStorage.getItem(`pondashi_grid_cols_page_${currentPage}`) || 
-    localStorage.getItem('pondashi_grid_cols') || 
+  const savedCols = Math.min(gridColsCap, parseInt(
+    localStorage.getItem(`pondashi_grid_cols_page_${currentPage}`) ||
+    localStorage.getItem('pondashi_grid_cols') ||
     '4'
   ));
   gridRowsInput.value = savedRows;
@@ -4721,9 +4791,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.getItem('pondashi_grid_rows') || 
       '3'
     ));
-    const pageCols = Math.min(4, parseInt(
-      localStorage.getItem(`pondashi_grid_cols_page_${currentPage}`) || 
-      localStorage.getItem('pondashi_grid_cols') || 
+    const pageCols = Math.min(gridColsCap, parseInt(
+      localStorage.getItem(`pondashi_grid_cols_page_${currentPage}`) ||
+      localStorage.getItem('pondashi_grid_cols') ||
       '4'
     ));
     gridRowsInput.value = pageRows;
