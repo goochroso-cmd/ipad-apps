@@ -1,0 +1,14 @@
+{
+  "name": "さいせい君 メモリ版",
+  "short_name": "さいせい君メモリ",
+  "description": "ポン出しアプリ（メモリ方式・息継ぎなし）",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0e12",
+  "theme_color": "#0d0e12",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
