@@ -2346,7 +2346,6 @@ body.light-theme .status-text {
   <header>
     <div class="app-title-container">
       <button class="help-btn" id="helpBtn" aria-label="ヘルプ">?</button>
-      <span class="app-version" id="appVersion" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 6px 14px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); white-space: nowrap; margin-left: 8px;">2026-08-18 v40.1（9個化+復元中ブロック）</span>
       <span id="statusMessage" class="status-text" style="display: none; margin-left: 8px;"></span>
       <div class="app-instructions">
         <span class="inst-item"><span class="inst-badge">キーボード</span>直接動作</span>
@@ -2612,6 +2611,10 @@ body.light-theme .status-text {
   <dialog id="helpModal" class="help-modal">
     <div class="help-modal-content">
       <span class="close-help-btn" id="closeHelpBtn">&times;</span>
+
+      <!-- ★v40.2: 画面左上に常時出していた版数表示はここへ移動 -->
+      <div id="appVersion" class="app-version" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 10px 16px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); margin-bottom: 18px; text-align: left;">2026-08-19 v40.3（版数表示をヘルプ内に移動）</div>
+
       <h2>対応音声ファイル形式</h2>
       <p>Pondashi は、ブラウザで動作する主要な音声フォーマットに対応しています。</p>
       <div class="help-format-list">
@@ -3594,16 +3597,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理
   // iOS/iPadOS Safari 向け AudioContext 自動アンロック処理 ＆ 起動時音声デコード処理
+  // ★v40.2: 1回のタップで 'touchstart' と 'click' の両方が発火し、この関数が
+  // 二重に同時実行されてしまう問題への対策。二重実行だと、それぞれが自分の
+  // 担当ぶんだけ終わった時点で個別にオーバーレイを消してしまい、
+  // 「1曲展開しただけで表示が消える」不具合になっていた（実機報告により判明）。
+  // 先頭で同期的にフラグを立てて、2回目の呼び出しは即座に何もせず抜ける。
+  let audioUnlockStarted = false;
   const unlockAudio = async () => {
+    if (audioUnlockStarted) return;
+    audioUnlockStarted = true;
+
+    // イベントリスナーの解除（フラグを立てた直後、待たずに解除してよい）
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+
     engine.initAudio();
     if (engine.audioCtx && engine.audioCtx.state === 'suspended') {
       await engine.audioCtx.resume();
     }
     console.log('AudioContext が正常にアンロックされました。未デコードの音声を復元します。');
-    
-    // イベントリスナーの解除
-    window.removeEventListener('click', unlockAudio);
-    window.removeEventListener('touchstart', unlockAudio);
 
     // 未デコードの音声（audioData があるが audioBuffer がないもの）をすべてデコードする
     setStatus('以前登録された音声を復元中...', 'loading');
