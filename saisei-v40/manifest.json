@@ -3,8 +3,23 @@
   "short_name": "さいせい君40",
   "description": "ポン出しシステム（Mac版のレイアウト・操作を土台にした版）",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#08090d",
   "theme_color": "#00f2fe",
-  "orientation": "any"
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

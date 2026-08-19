@@ -2613,7 +2613,7 @@ body.light-theme .status-text {
       <span class="close-help-btn" id="closeHelpBtn">&times;</span>
 
       <!-- ★v40.2: 画面左上に常時出していた版数表示はここへ移動 -->
-      <div id="appVersion" class="app-version" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 10px 16px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); margin-bottom: 18px; text-align: left;">2026-08-19 v40.3（版数表示をヘルプ内に移動）</div>
+      <div id="appVersion" class="app-version" style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; color: #ffd60a; background: rgba(255, 214, 10, 0.12); padding: 10px 16px; border-radius: 8px; border: 2px solid rgba(255, 214, 10, 0.55); margin-bottom: 18px; text-align: left;">2026-08-19 v40.5（アプリアイコン反映修正）</div>
 
       <h2>対応音声ファイル形式</h2>
       <p>Pondashi は、ブラウザで動作する主要な音声フォーマットに対応しています。</p>
@@ -2639,7 +2639,7 @@ body.light-theme .status-text {
       
       <!-- アプリアイコン保存セクション -->
       <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 15px; display: flex; align-items: center; gap: 15px; text-align: left;">
-        <img src="icon.png" style="width: 72px; height: 72px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); -webkit-touch-callout: default;" alt="アイコン">
+        <img src="./icon-512.png" style="width: 72px; height: 72px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); -webkit-touch-callout: default;" alt="アイコン">
         <div style="flex: 1;">
           <h4 style="margin: 0 0 4px 0; font-size: 1.05rem; color: var(--color-cyan);">iPadホーム画面用アイコン画像の保存</h4>
           <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">左のアイコン画像を長押しして「写真に追加（保存）」してください。iPadのショートカットアプリ等でホーム画面に配置する際のアイコン画像として選択できます。</p>
@@ -2784,22 +2784,27 @@ class PondashiAudioEngine {
         const store = transaction.objectStore(transaction.objectStoreNames[0]);
         const request = store.getAll();
 
-        request.onsuccess = async (event) => {
+        request.onsuccess = (event) => {
           const results = event.target.result;
 
+          // ★v40.4: ここでは絶対にデコードしない（audioData を積むだけ）。
+          // 以前はここで「this.audioCtx が既にあればついでにデコードする」処理をしていたが、
+          // これが unlockAudio() の展開ループと**並行して**動けてしまうバグの原因だった。
+          // loadAllPads()（IndexedDB読み込み・こちらは待たされない）と
+          // unlockAudio()（タップで発火・全画面ブロック付き）がほぼ同時に走ると、
+          // unlockAudio 側が「デコードすべき曲」を数えた"その瞬間"より後に
+          // loadAllPads 側がまだ後続の曲を積んでいる最中で、かつこの時点で
+          // 既に unlockAudio が engine.initAudio() 済み（audioCtx が存在）だと、
+          // ここの分岐が真になってしまい、loadAllPads が「オーバーレイの外側」で
+          // こっそり展開を始めてしまっていた。
+          // 実機・再現テストで確認: 5曲登録して再起動すると、オーバーレイの進捗表示は
+          // 「1 / 1 曲を展開中…」のまま1曲だけで消え、残り4曲はオーバーレイの裏で
+          // 無防備に展開されていた（表示上「1曲で消えた」ように見える不具合の正体）。
+          // 曲の展開は必ず unlockAudio() 側の1本のループだけが行うようにする。
           for (const data of results) {
             const index = data.id;
             if (index >= 0 && index < MAX_PADS) {
               this.pads[index] = { ...this.pads[index], ...data };
-
-              if (data.audioData && this.audioCtx) {
-                try {
-                  const bufferCopy = data.audioData.slice(0);
-                  this.pads[index].audioBuffer = await this.decodeAudio(bufferCopy);
-                } catch (e) {
-                  console.error(`パッド ${index} の音声デコードに失敗しました:`, e);
-                }
-              }
             }
           }
           resolve(this.pads);

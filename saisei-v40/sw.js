@@ -1,8 +1,9 @@
-const CACHE_NAME = 'saisei-v40-cache-v4';
+const CACHE_NAME = 'saisei-v40-cache-v6';
 const ASSETS = [
   './',
   './index.html',
-  './manifest.json'
+  './manifest.json',
+  './icon-512.png'
 ];
 
 // Install Event
